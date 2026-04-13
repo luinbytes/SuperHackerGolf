@@ -913,6 +913,119 @@ public partial class MimiMod
         return true;
     }
 
+    // E8b: wind-aware launch-speed solver.
+    //
+    // Forward-sims the ball using the exact Hittable.ApplyAirDamping physics
+    // (same formula as the predicted trail) and searches for the launch speed
+    // that puts the ball closest to the 3D target. Unlike TrySolveRequiredSpeedWithDrag
+    // this accounts for wind — the ball will accelerate/decelerate depending on
+    // whether the wind is a head or tail component, and lateral drift in crosswind
+    // shifts the landing point.
+    //
+    // Search strategy: coarse scan 5..220 m/s in 3 m/s steps → refine around best
+    // in 0.5 m/s steps. Returns false if nothing gets within 50m of target
+    // (likely out of range regardless).
+    private bool TrySolveLaunchSpeedWindAware(Vector3 shotOrigin, Vector3 targetPos, float swingPitch, out float solvedSpeed)
+    {
+        solvedSpeed = 0f;
+
+        Vector3 toTarget = targetPos - shotOrigin;
+        Vector3 horizToTarget = new Vector3(toTarget.x, 0f, toTarget.z);
+        float targetDist = horizToTarget.magnitude;
+        if (targetDist < 0.5f)
+        {
+            solvedSpeed = 5f;
+            return true;
+        }
+
+        Vector3 aimHoriz = horizToTarget.normalized;
+        float pitchRad = swingPitch * Mathf.Deg2Rad;
+        Vector3 launchDir = aimHoriz * Mathf.Cos(pitchRad) + Vector3.up * Mathf.Sin(pitchRad);
+
+        Vector3 wind = GetCachedWindVector();
+        float ballWF = GetBallWindFactor();
+        float ballCWF = GetBallCrossWindFactor();
+        float airDrag = GetRuntimeLinearAirDragFactor();
+
+        float bestSpeed = 100f;
+        float bestDistSq = float.MaxValue;
+
+        // Coarse scan
+        for (float speed = 5f; speed <= 220f; speed += 3f)
+        {
+            Vector3 landing = SimulateBallLandingPoint(shotOrigin, launchDir, speed, wind, ballWF, ballCWF, airDrag, targetPos.y);
+            float d2 = (landing - targetPos).sqrMagnitude;
+            if (d2 < bestDistSq)
+            {
+                bestDistSq = d2;
+                bestSpeed = speed;
+            }
+        }
+
+        // Refine around best
+        float lo = Mathf.Max(1f, bestSpeed - 3f);
+        float hi = Mathf.Min(240f, bestSpeed + 3f);
+        for (float speed = lo; speed <= hi; speed += 0.5f)
+        {
+            Vector3 landing = SimulateBallLandingPoint(shotOrigin, launchDir, speed, wind, ballWF, ballCWF, airDrag, targetPos.y);
+            float d2 = (landing - targetPos).sqrMagnitude;
+            if (d2 < bestDistSq)
+            {
+                bestDistSq = d2;
+                bestSpeed = speed;
+            }
+        }
+
+        if (bestDistSq > 2500f) // >50m miss → bail, let the caller fall back
+        {
+            return false;
+        }
+
+        solvedSpeed = bestSpeed;
+        return true;
+    }
+
+    // Forward-sim a ball launch until it descends through targetGroundY. Matches
+    // the exact physics of BuildPredictedTrajectoryPoints (E8 formula).
+    private Vector3 SimulateBallLandingPoint(Vector3 shotOrigin, Vector3 launchDir, float launchSpeed,
+                                              Vector3 windVector, float ballWF, float ballCWF, float airDragFactor,
+                                              float targetGroundY)
+    {
+        float dt = Mathf.Clamp(Time.fixedDeltaTime, 0.005f, 0.04f);
+        Vector3 gravity = Physics.gravity;
+        Vector3 position = shotOrigin;
+        Vector3 velocity = launchDir * launchSpeed;
+
+        for (int i = 0; i < predictedPathMaxSteps; i++)
+        {
+            velocity += gravity * dt;
+
+            Vector3 effectiveWind = Vector3.zero;
+            if (windVector.sqrMagnitude > 0.0001f && velocity.sqrMagnitude > 0.0001f)
+            {
+                Vector3 windAlong = Vector3.Project(windVector, velocity);
+                Vector3 windCross = windVector - windAlong;
+                effectiveWind = windAlong * ballWF + windCross * ballCWF;
+            }
+            Vector3 relVel = velocity - effectiveWind;
+            float dragDelta = Mathf.Max(0f, airDragFactor * relVel.sqrMagnitude * dt);
+            velocity -= relVel * dragDelta;
+
+            position += velocity * dt;
+
+            // Return as soon as the ball crosses the target ground height on descent.
+            if (position.y <= targetGroundY && velocity.y < 0f)
+            {
+                return position;
+            }
+            if (position.y < -200f)
+            {
+                break;
+            }
+        }
+        return position;
+    }
+
     private float CalculateRequiredPowerForPitch(float horizontalDistance, float heightDifference, float swingPitch)
     {
         if (horizontalDistance < 0.01f)
@@ -1012,7 +1125,21 @@ public partial class MimiMod
             }
 
             idealSwingPitch = currentPitch;
-            float physicsPower = CalculateRequiredPowerForPitch(horizontalDistance, heightDifference, idealSwingPitch);
+
+            // E8b: prefer the wind-aware forward-sim solver (uses the exact game
+            // physics + current wind + ball WindFactor/CrossWindFactor). Falls
+            // back to Mimi's 2D drag-only solver if the search can't converge
+            // (e.g. target is unreachable at this pitch).
+            RefreshBallWindFactors();
+            float physicsPower;
+            if (TrySolveLaunchSpeedWindAware(shotOrigin, currentAimTargetPosition, idealSwingPitch, out float windAwareSpeed))
+            {
+                physicsPower = Mathf.Clamp(EstimatePowerFromLaunchSpeed(windAwareSpeed), 0.05f, 2f);
+            }
+            else
+            {
+                physicsPower = CalculateRequiredPowerForPitch(horizontalDistance, heightDifference, idealSwingPitch);
+            }
 
             // User-facing bug fix: vanilla Mimi happily fires at 115% (the game's
             // MaxSwingOvercharge) when the hole is out of reach, which is wildly

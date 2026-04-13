@@ -162,6 +162,12 @@ public partial class MimiMod
         GUILayout.EndHorizontal();
 
         GUILayout.Label("Live wind: " + GetWindDiagnosticReadout(), cachedLabelStyle);
+        // Physically expected lateral drift for a 2.5s flight at current coefficient:
+        //   drift ≈ 0.5 * (mag * windStrength) * t²
+        float liveMag = cachedWindVector.magnitude;
+        float expectedAccel = liveMag * windStrength;
+        float expectedDrift = 0.5f * expectedAccel * 2.5f * 2.5f;
+        GUILayout.Label($"Predicted drift @ 2.5s flight: {expectedDrift:F1}m  (accel {expectedAccel:F2} m/s²)", cachedLabelStyle);
 
         GUILayout.Space(6);
 

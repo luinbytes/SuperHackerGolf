@@ -268,10 +268,12 @@ public partial class MimiMod
         float pointSpacingSq = predictedPathPointSpacing * predictedPathPointSpacing;
 
         // D2 graft: read wind once per sim; applied as lateral acceleration in the
-        // integrator below. Cached 0.5s in MimiMod.Wind.cs so repeated trajectory
+        // integrator below. Cached 0.2s in MimiMod.Wind.cs so repeated trajectory
         // rebuilds during a single hold don't re-reflect WindManager properties.
+        // windStrength is user-tunable via the settings GUI slider — the effective
+        // wind force is (windVector * windStrength * dt) added per integration step.
         Vector3 windVector = GetCachedWindVector();
-        const float WIND_COEFF = 0.08f;
+        float windCoefficient = windStrength;
 
         outputPoints.Add(shotOrigin);
 
@@ -287,9 +289,15 @@ public partial class MimiMod
         {
             Vector3 previousPosition = position;
             velocity += gravity * dt;
-            // D2 graft: horizontal wind force — pure acceleration applied before drag.
-            velocity.x += windVector.x * WIND_COEFF * dt;
-            velocity.z += windVector.z * WIND_COEFF * dt;
+            // D2/E2 graft: horizontal wind force as RELATIVE wind drag — the ball
+            // already moving with the wind receives less additional push, while a
+            // ball moving against the wind feels the full force. This matches how
+            // real aerodynamic drag interacts with a moving body and prevents the
+            // prediction from overshooting on fast shots through heavy wind.
+            float relativeWindX = windVector.x - velocity.x;
+            float relativeWindZ = windVector.z - velocity.z;
+            velocity.x += relativeWindX * windCoefficient * dt;
+            velocity.z += relativeWindZ * windCoefficient * dt;
             float speedSq = velocity.sqrMagnitude;
             float damping = Mathf.Max(0f, 1f - airDragFactor * speedSq * dt);
             velocity *= damping;

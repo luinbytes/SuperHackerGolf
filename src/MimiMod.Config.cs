@@ -47,6 +47,7 @@ public partial class MimiMod
         settingsGuiKeyName = "F8";
         allowOvercharge = false;
         instaHitEnabled = false;
+        windStrength = 1.5f;
         actualTrailEnabled = true;
         predictedTrailEnabled = true;
         frozenTrailEnabled = true;
@@ -113,6 +114,9 @@ public partial class MimiMod
                     break;
                 case "insta_hit_enabled":
                     instaHitEnabled = ParseBoolOrDefault(value, instaHitEnabled);
+                    break;
+                case "wind_strength":
+                    windStrength = ParseFloatOrDefault(value, windStrength, 0f, 1f);
                     break;
                 case "actual_trail_enabled":
                     actualTrailEnabled = ParseBoolOrDefault(value, actualTrailEnabled);
@@ -199,6 +203,13 @@ public partial class MimiMod
             builder.AppendLine("# insta_hit_enabled=false → you hold LMB and charge manually, the mod only releases at the optimal power.");
         }
         builder.AppendLine("insta_hit_enabled=" + (instaHitEnabled ? "true" : "false"));
+        if (includeComments)
+        {
+            builder.AppendLine();
+            builder.AppendLine("# Wind strength multiplier for the predicted trajectory (0 = ignore wind, 0.04 default).");
+            builder.AppendLine("# Dial it live from the settings GUI slider until the predicted curve matches actual shots.");
+        }
+        builder.AppendLine("wind_strength=" + windStrength.ToString("0.###", CultureInfo.InvariantCulture));
         builder.AppendLine();
         builder.AppendLine("actual_trail_enabled=" + (actualTrailEnabled ? "true" : "false"));
         builder.AppendLine("actual_trail_start_width=" + actualTrailStartWidth.ToString("0.###", CultureInfo.InvariantCulture));

@@ -136,6 +136,21 @@ public partial class MimiMod
 
         GUILayout.Space(6);
 
+        // ── Wind tuning section ─────────────────────────────────────────────
+        GUILayout.Label("WIND PREDICTION", cachedHeaderStyle);
+
+        GUILayout.Label($"Wind strength: {windStrength:F3}   (0 = ignore wind, dial until prediction matches actual)", cachedLabelStyle);
+        float newWindStrength = GUILayout.HorizontalSlider(windStrength, 0f, 0.25f);
+        if (Mathf.Abs(newWindStrength - windStrength) > 0.0005f)
+        {
+            windStrength = Mathf.Round(newWindStrength * 1000f) / 1000f;
+            nextPredictedPathRefreshTime = 0f;
+        }
+
+        GUILayout.Label("Live wind: " + GetWindDiagnosticReadout(), cachedLabelStyle);
+
+        GUILayout.Space(6);
+
         // ── Visuals section ─────────────────────────────────────────────────
         GUILayout.Label("TRAILS & PREVIEW", cachedHeaderStyle);
 

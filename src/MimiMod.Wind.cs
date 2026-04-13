@@ -179,20 +179,12 @@ public partial class MimiMod
             bool readSucceeded = false;
             string readSource = "-";
 
-            // Preferred source: Wind property (already combined direction * speed).
-            if (cachedWindVectorProperty != null)
-            {
-                object windValue = cachedWindVectorProperty.GetValue(cachedWindManagerInstance, null);
-                if (windValue is Vector3 wv)
-                {
-                    rawWind = wv;
-                    readSucceeded = true;
-                    readSource = "Wind";
-                }
-            }
-
-            // Fallback: CurrentWindDirection * CurrentWindSpeed.
-            if (!readSucceeded && cachedWindDirectionProperty != null && cachedWindSpeedProperty != null)
+            // PREFERRED: CurrentWindDirection * CurrentWindSpeed.
+            // These are the interpolated/display properties the game's own UI uses,
+            // so they're in real m/s units. The raw "Wind" property returned
+            // absurdly-high values (magnitude ~47) suggesting it's an internal
+            // force vector, not a velocity — we use it only as a last resort.
+            if (cachedWindDirectionProperty != null && cachedWindSpeedProperty != null)
             {
                 object dirValue = cachedWindDirectionProperty.GetValue(cachedWindManagerInstance, null);
                 object speedValue = cachedWindSpeedProperty.GetValue(cachedWindManagerInstance, null);
@@ -203,7 +195,7 @@ public partial class MimiMod
                 readSource = "Dir*Spd";
             }
 
-            // Last resort: build from NetworkcurrentWindAngle + NetworkcurrentWindSpeed
+            // Fallback 1: build from NetworkcurrentWindAngle + NetworkcurrentWindSpeed
             // (angle is degrees; assume 0 = north/+Z and rotates clockwise).
             if (!readSucceeded && cachedWindNetworkAngleProperty != null && cachedWindNetworkSpeedProperty != null)
             {
@@ -215,6 +207,18 @@ public partial class MimiMod
                 rawWind = new Vector3(Mathf.Sin(rad), 0f, Mathf.Cos(rad)) * spd;
                 readSucceeded = true;
                 readSource = "Net";
+            }
+
+            // Last resort: raw Wind property (probably a force, not velocity).
+            if (!readSucceeded && cachedWindVectorProperty != null)
+            {
+                object windValue = cachedWindVectorProperty.GetValue(cachedWindManagerInstance, null);
+                if (windValue is Vector3 wv)
+                {
+                    rawWind = wv;
+                    readSucceeded = true;
+                    readSource = "Wind(raw)";
+                }
             }
 
             if (!readSucceeded)

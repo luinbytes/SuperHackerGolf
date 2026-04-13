@@ -267,22 +267,26 @@ public partial class MimiMod
         float airDragFactor = GetRuntimeLinearAirDragFactor();
         float pointSpacingSq = predictedPathPointSpacing * predictedPathPointSpacing;
 
-        // D2/E7 graft: wind compensation with cross/along decomposition.
+        // E8 graft: EXACT reimplementation of Hittable.ApplyAirDamping.
         //
-        // Flat `wind * coeff * dt` treated every wind direction the same, which
-        // was wrong: headwinds/tailwinds change shot RANGE (drag effect) while
-        // crosswinds change shot WIDTH (small lateral deflection). Physically
-        // these need different coefficient magnitudes — typically drag is ~10x
-        // stronger than lateral drift for the same wind magnitude.
+        // Decompiled from GameAssembly.dll, the real formula is:
+        //   effectiveWind = Vector3.Project(wind, velocity) * WindFactor
+        //                 + (wind - Vector3.Project(wind, velocity)) * CrossWindFactor
+        //   relVel = velocity - effectiveWind
+        //   dragDelta = max(0, airDragFactor * |relVel|² * dt)
+        //   velocity -= relVel * dragDelta
         //
-        // Decomposition at each integration step:
-        //   ballDir = horizontal ball velocity normalized
-        //   alongWind = dot(wind, ballDir)       // + tailwind, - headwind
-        //   crossWind = wind - ballDir * alongWind  // perpendicular to motion
-        // Apply cross as lateral push (windStrength), along as drag (windDragStrength).
+        // Drag is quadratic in the RELATIVE-to-air velocity, and wind is folded
+        // into the drag calculation — it isn't a separate force. This replaces
+        // the homebrew `velocity += wind * coeff * dt` + Mimi's own `damping`
+        // line entirely, because the game combines them in one step.
+        //
+        // WindFactor / CrossWindFactor come from WindHittableSettings on the ball
+        // (read via RefreshBallWindFactors) — no more guessing coefficients.
+        RefreshBallWindFactors();
         Vector3 windVector = GetCachedWindVector();
-        float windCrossCoefficient = windStrength;
-        float windAlongCoefficient = windDragStrength;
+        float ballWindFactor = GetBallWindFactor();
+        float ballCrossWindFactor = GetBallCrossWindFactor();
 
         outputPoints.Add(shotOrigin);
 
@@ -298,40 +302,21 @@ public partial class MimiMod
         {
             Vector3 previousPosition = position;
             velocity += gravity * dt;
-            // E7: decompose horizontal wind into cross (perp to ball motion) and
-            // along (parallel to ball motion) components; apply cross as lateral
-            // push, along as drag. Only do this if the ball has meaningful
-            // horizontal velocity; otherwise fall back to flat wind.
+
+            // E8: exact Hittable.ApplyAirDamping reimplementation.
+            // effectiveWind = project(wind, velocity)*WindFactor + cross*CrossWindFactor
+            // then drag is applied to (velocity - effectiveWind).
+            Vector3 effectiveWind = Vector3.zero;
+            if (windVector.sqrMagnitude > 0.0001f && velocity.sqrMagnitude > 0.0001f)
             {
-                float ballHorizSpeedSq = velocity.x * velocity.x + velocity.z * velocity.z;
-                if (ballHorizSpeedSq > 0.01f)
-                {
-                    float ballHorizSpeed = Mathf.Sqrt(ballHorizSpeedSq);
-                    float ballDirX = velocity.x / ballHorizSpeed;
-                    float ballDirZ = velocity.z / ballHorizSpeed;
-
-                    float alongMag = windVector.x * ballDirX + windVector.z * ballDirZ;
-                    float crossX = windVector.x - ballDirX * alongMag;
-                    float crossZ = windVector.z - ballDirZ * alongMag;
-
-                    // Cross: lateral push (the tuned 0.0041 coefficient lives here)
-                    velocity.x += crossX * windCrossCoefficient * dt;
-                    velocity.z += crossZ * windCrossCoefficient * dt;
-
-                    // Along: drag/push along ball direction. Positive alongMag =
-                    // tailwind accelerates; negative = headwind decelerates.
-                    velocity.x += ballDirX * alongMag * windAlongCoefficient * dt;
-                    velocity.z += ballDirZ * alongMag * windAlongCoefficient * dt;
-                }
-                else
-                {
-                    velocity.x += windVector.x * windCrossCoefficient * dt;
-                    velocity.z += windVector.z * windCrossCoefficient * dt;
-                }
+                Vector3 windAlong = Vector3.Project(windVector, velocity);
+                Vector3 windCross = windVector - windAlong;
+                effectiveWind = windAlong * ballWindFactor + windCross * ballCrossWindFactor;
             }
-            float speedSq = velocity.sqrMagnitude;
-            float damping = Mathf.Max(0f, 1f - airDragFactor * speedSq * dt);
-            velocity *= damping;
+            Vector3 relVel = velocity - effectiveWind;
+            float relSqrMag = relVel.sqrMagnitude;
+            float dragDelta = Mathf.Max(0f, airDragFactor * relSqrMag * dt);
+            velocity -= relVel * dragDelta;
 
             position += velocity * dt;
 

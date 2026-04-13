@@ -50,12 +50,22 @@ public partial class MimiMod
     private PropertyInfo cachedWindSpeedProperty;            // "CurrentWindSpeed"
     private PropertyInfo cachedWindNetworkAngleProperty;     // "NetworkcurrentWindAngle"
     private PropertyInfo cachedWindNetworkSpeedProperty;     // "NetworkcurrentWindSpeed"
-    private PropertyInfo cachedCrossWindFactorProperty;      // "CrossWindFactor"
     private Vector3 cachedWindVector = Vector3.zero;
-    private float cachedWindCrossFactor = 1f;
     private float nextWindRefreshTime;
     private readonly float windCacheRefreshInterval = 0.2f;
     private string windDiagnosticReadout = "(wind: not initialized)";
+
+    // E8 — per-ball wind factors reflected from HittableSettings.Wind
+    // (WindHittableSettings.WindFactor, .CrossWindFactor). These are the exact
+    // multipliers the game uses in Hittable.ApplyAirDamping.
+    private bool ballWindSettingsInitialized;
+    private Component cachedBallHittableComponent;
+    private FieldInfo cachedHittableSettingsField;          // Hittable.settings
+    private PropertyInfo cachedHittableSettingsWindProperty; // HittableSettings.Wind
+    private PropertyInfo cachedWindFactorProperty;          // WindHittableSettings.WindFactor
+    private PropertyInfo cachedCrossWindFactorProperty;     // WindHittableSettings.CrossWindFactor
+    private float cachedBallWindFactor = 1f;
+    private float cachedBallCrossWindFactor = 1f;
 
     private void EnsureWindReflectionInitialized()
     {
@@ -117,11 +127,6 @@ public partial class MimiMod
             "NetworkcurrentWindSpeed",
             "NetworkcurrentWindSpeed");
 
-        cachedCrossWindFactorProperty = ModReflectionHelper.GetPropertyCascade(
-            cachedWindManagerType,
-            "CrossWindFactor",
-            "CrossWindFactor", "WindFactor");
-
         LogWindApiSummary();
     }
 
@@ -136,7 +141,6 @@ public partial class MimiMod
             sb.Append(" CurSpd=").Append(cachedWindSpeedProperty != null ? "Y" : "n");
             sb.Append(" NetAng=").Append(cachedWindNetworkAngleProperty != null ? "Y" : "n");
             sb.Append(" NetSpd=").Append(cachedWindNetworkSpeedProperty != null ? "Y" : "n");
-            sb.Append(" Cross=").Append(cachedCrossWindFactorProperty != null ? "Y" : "n");
             MelonLogger.Msg(sb.ToString());
         }
         catch
@@ -228,19 +232,8 @@ public partial class MimiMod
                 return cachedWindVector;
             }
 
-            // Apply CrossWindFactor multiplier if present (per-match/per-course wind strength).
-            if (cachedCrossWindFactorProperty != null)
-            {
-                object factorValue = cachedCrossWindFactorProperty.GetValue(cachedWindManagerInstance, null);
-                float factor = ConvertToFloat(factorValue);
-                if (factor > 0.0001f)
-                {
-                    cachedWindCrossFactor = factor;
-                }
-            }
-
             cachedWindVector = rawWind;
-            windDiagnosticReadout = $"src={readSource} v=({rawWind.x:F2},{rawWind.z:F2}) mag={rawWind.magnitude:F2} cwf={cachedWindCrossFactor:F2}";
+            windDiagnosticReadout = $"src={readSource} v=({rawWind.x:F2},{rawWind.z:F2}) mag={rawWind.magnitude:F2} wf={cachedBallWindFactor:F2}/cwf={cachedBallCrossWindFactor:F2}";
         }
         catch (Exception ex)
         {
@@ -300,4 +293,101 @@ public partial class MimiMod
     {
         return windDiagnosticReadout;
     }
+
+    /// <summary>
+    /// Read WindFactor and CrossWindFactor from the current ball's HittableSettings.Wind.
+    /// Matches the exact values the game uses in Hittable.ApplyAirDamping. Cached until
+    /// the golfBall reference changes.
+    /// </summary>
+    internal void RefreshBallWindFactors()
+    {
+        if (golfBall == null)
+        {
+            return;
+        }
+
+        if (ballWindSettingsInitialized && ReferenceEquals(cachedBallHittableComponent?.gameObject, golfBall.gameObject))
+        {
+            return;
+        }
+
+        ballWindSettingsInitialized = true;
+        cachedBallWindFactor = 1f;
+        cachedBallCrossWindFactor = 1f;
+
+        try
+        {
+            // The Hittable component lives on the same GameObject as GolfBall.
+            Component[] all = golfBall.gameObject.GetComponents<Component>();
+            Component hittable = null;
+            for (int i = 0; i < all.Length; i++)
+            {
+                if (all[i] != null && all[i].GetType().Name == "Hittable")
+                {
+                    hittable = all[i];
+                    break;
+                }
+            }
+            if (hittable == null)
+            {
+                MelonLogger.Msg("[MimiMod] Wind: Hittable component not found on golfBall");
+                return;
+            }
+            cachedBallHittableComponent = hittable;
+
+            Type hittableType = hittable.GetType();
+            if (cachedHittableSettingsField == null)
+            {
+                cachedHittableSettingsField = ModReflectionHelper.GetFieldCascade(
+                    hittableType, "settings", "settings");
+            }
+            if (cachedHittableSettingsField == null) return;
+
+            object settings = cachedHittableSettingsField.GetValue(hittable);
+            if (settings == null) return;
+
+            Type settingsType = settings.GetType();
+            if (cachedHittableSettingsWindProperty == null)
+            {
+                cachedHittableSettingsWindProperty = ModReflectionHelper.GetPropertyCascade(
+                    settingsType, "Wind", "Wind");
+            }
+            if (cachedHittableSettingsWindProperty == null) return;
+
+            object windSettings = cachedHittableSettingsWindProperty.GetValue(settings, null);
+            if (windSettings == null) return;
+
+            Type windSettingsType = windSettings.GetType();
+            if (cachedWindFactorProperty == null)
+            {
+                cachedWindFactorProperty = ModReflectionHelper.GetPropertyCascade(
+                    windSettingsType, "WindFactor", "WindFactor");
+            }
+            if (cachedCrossWindFactorProperty == null)
+            {
+                cachedCrossWindFactorProperty = ModReflectionHelper.GetPropertyCascade(
+                    windSettingsType, "CrossWindFactor", "CrossWindFactor");
+            }
+
+            if (cachedWindFactorProperty != null)
+            {
+                object v = cachedWindFactorProperty.GetValue(windSettings, null);
+                if (v is float f) cachedBallWindFactor = f;
+            }
+            if (cachedCrossWindFactorProperty != null)
+            {
+                object v = cachedCrossWindFactorProperty.GetValue(windSettings, null);
+                if (v is float f) cachedBallCrossWindFactor = f;
+            }
+
+            MelonLogger.Msg($"[MimiMod] Ball wind factors: WindFactor={cachedBallWindFactor:F3}, CrossWindFactor={cachedBallCrossWindFactor:F3}");
+        }
+        catch (Exception ex)
+        {
+            MelonLogger.Warning($"[MimiMod] RefreshBallWindFactors failed: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    internal float GetBallWindFactor() => cachedBallWindFactor;
+    internal float GetBallCrossWindFactor() => cachedBallCrossWindFactor;
 }

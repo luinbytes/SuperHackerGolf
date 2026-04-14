@@ -1195,37 +1195,24 @@ public partial class SuperHackerGolf
 
             idealSwingPitch = currentPitch;
 
-            // E8b: prefer the wind-aware forward-sim solver (uses the exact game
-            // physics + current wind + ball WindFactor/CrossWindFactor). Falls
-            // back to Mimi's 2D drag-only solver if the search can't converge
-            // (e.g. target is unreachable at this pitch).
+            // E10 2D aim compensation DISABLED — it was over-correcting for the
+            // 1D solver's quantization residual (0.5 m/s refine = 2-3m range
+            // error per iter) and accumulating drift. Telemetry shot 21 showed
+            // predict 5.4m past hole when the ball followed the predicted path
+            // exactly. The 1D solver alone gets within 1-2m on normal shots.
+            //
+            // Crosswind drift that the 2D solver was meant to compensate is
+            // small in practice because CrossWindFactor=0.05 caps perpendicular
+            // drift at ~5m on long windy shots. The player can visually adjust.
+            //
+            // Leaving TrySolveWindCompensatedAim in the source for a future
+            // re-enable once the 1D solver has finer precision.
             RefreshBallWindFactors();
-            float physicsPower;
-
-            // E10: run the 2D aim+speed solver against the RAW hole target. It
-            // returns a wind-compensated aim point that, when launched toward
-            // under current wind, curves back to the actual hole. We then
-            // override currentAimTargetPosition with this compensated target so
-            // Mimi's predicted trail, the auto-aim camera, and the power solver
-            // all work in unison to land the ball on the hole.
             Vector3 rawHoleTarget = currentAimTargetPosition;
-            // Skip 2D aim compensation on close shots — crosswind drift at <15m
-            // is negligible vs. the search quantization of the 1D solver, and
-            // running the 2D nudge can destabilize close-range power calcs.
-            bool useCompensation = horizontalDistance >= 15f;
-            if (useCompensation && TrySolveWindCompensatedAim(shotOrigin, rawHoleTarget, idealSwingPitch,
-                                            out Vector3 compensatedAim, out float windAwareSpeed))
+            float physicsPower;
+            if (TrySolveLaunchSpeedWindAware(shotOrigin, rawHoleTarget, idealSwingPitch, out float windAwareSpeed))
             {
-                currentAimTargetPosition = compensatedAim;
-                toTarget = currentAimTargetPosition - shotOrigin;
-                horizontalToTarget = new Vector3(toTarget.x, 0f, toTarget.z);
-                horizontalDistance = horizontalToTarget.magnitude;
-                heightDifference = toTarget.y;
                 physicsPower = Mathf.Clamp(EstimatePowerFromLaunchSpeed(windAwareSpeed), 0.05f, 2f);
-            }
-            else if (TrySolveLaunchSpeedWindAware(shotOrigin, rawHoleTarget, idealSwingPitch, out float closeShotSpeed))
-            {
-                physicsPower = Mathf.Clamp(EstimatePowerFromLaunchSpeed(closeShotSpeed), 0.05f, 2f);
             }
             else
             {

@@ -76,7 +76,23 @@ public partial class SuperHackerGolf
         {
             return;
         }
-        if (frozenPredictedPathPoints == null || frozenPredictedPathPoints.Count == 0)
+        // Predicted landing source:
+        //   frozenImpactPreviewPoint — the true raycast-derived ground impact
+        //   (Mimi's forward sim continues past impact until step/time limits,
+        //   so the last trajectory point is buried underground — useless).
+        //
+        // Fall back to frozen path last point ONLY if the raycast impact isn't
+        // valid; that at least gives us a rough Y for comparison.
+        Vector3 predictedLanding;
+        if (frozenImpactPreviewValid)
+        {
+            predictedLanding = frozenImpactPreviewPoint;
+        }
+        else if (frozenPredictedPathPoints != null && frozenPredictedPathPoints.Count > 0)
+        {
+            predictedLanding = frozenPredictedPathPoints[frozenPredictedPathPoints.Count - 1];
+        }
+        else
         {
             return;
         }
@@ -85,7 +101,7 @@ public partial class SuperHackerGolf
         telemetryImpactRecorded = false;
         telemetryBallHasLaunched = false;
         telemetryCaptureTime = Time.time;
-        telemetryPredictedLanding = frozenPredictedPathPoints[frozenPredictedPathPoints.Count - 1];
+        telemetryPredictedLanding = predictedLanding;
         telemetryShotOrigin = golfBall.transform.position;
         telemetryMaxY = telemetryShotOrigin.y;
         telemetryHolePosition = holePosition;
@@ -193,6 +209,20 @@ public partial class SuperHackerGolf
         // Ball has stopped — log.
         telemetryShotCounter++;
         Vector3 finalRest = ballPos;
+
+        // OOB detection: if the ball's final rest is very close to the shot
+        // origin (< 1.5m) AND elapsed flight time is long enough that it
+        // couldn't possibly be a dribble, the game almost certainly respawned
+        // the ball at the tee due to out-of-bounds. Flag it so the CSV row
+        // doesn't pollute the delta regression.
+        bool outOfBounds = false;
+        if (!telemetryImpactRecorded &&
+            elapsed > 1.5f &&
+            (finalRest - telemetryShotOrigin).sqrMagnitude < 2.25f) // < 1.5m
+        {
+            outOfBounds = true;
+        }
+
         Vector3 actualImpact = telemetryImpactRecorded ? telemetryActualImpact : finalRest;
         Vector3 impactDelta = actualImpact - telemetryPredictedLanding;
         Vector3 restDelta = finalRest - telemetryPredictedLanding;
@@ -208,11 +238,12 @@ public partial class SuperHackerGolf
             ? "wind=CALM"
             : $"wind=({telemetryWindAtRelease.x:F1},{telemetryWindAtRelease.z:F1}) |{windMag:F1}|";
 
-        string impactLabel = telemetryImpactRecorded ? "impactΔ" : "restΔ";
+        string impactLabel = telemetryImpactRecorded ? "impactΔ" : (outOfBounds ? "OOB_rest" : "restΔ");
+        string oobTag = outOfBounds ? " [OOB]" : "";
         string summary = $"#{telemetryShotCounter} dist={shotDistance:F1}m " +
                          $"pwr={telemetryAppliedPower * 100f:F0}% " +
                          $"pitch={telemetryShotPitch:F1}° " +
-                         $"{windLabel} " +
+                         $"{windLabel}{oobTag} " +
                          $"{impactLabel}=({impactDelta.x:+0.00;-0.00},{impactDelta.z:+0.00;-0.00}) |{impactDelta.magnitude:F2}|m " +
                          $"vsHole=|{vsHole.magnitude:F2}|m " +
                          $"flight={elapsed:F1}s";
@@ -232,13 +263,14 @@ public partial class SuperHackerGolf
             impactDelta: impactDelta,
             restDelta: restDelta,
             vsHole: vsHole,
-            flightTime: elapsed);
+            flightTime: elapsed,
+            outOfBounds: outOfBounds);
 
         telemetryShotInProgress = false;
     }
 
     private void AppendTelemetryCsv(float shotDistance, Vector3 finalRest, Vector3 actualImpact,
-                                     Vector3 impactDelta, Vector3 restDelta, Vector3 vsHole, float flightTime)
+                                     Vector3 impactDelta, Vector3 restDelta, Vector3 vsHole, float flightTime, bool outOfBounds)
     {
         try
         {
@@ -252,7 +284,7 @@ public partial class SuperHackerGolf
 
             if (!telemetryCsvHeaderWritten && !File.Exists(telemetryCsvPath))
             {
-                sb.AppendLine("shot,wind_state,had_airborne_impact,shot_distance_m,flight_s,wind_x,wind_z,wind_mag,wind_factor,cross_wind_factor,air_drag,swing_power_mul,power_pct,pitch_deg,origin_x,origin_y,origin_z,hole_x,hole_y,hole_z,predict_x,predict_y,predict_z,impact_x,impact_y,impact_z,final_x,final_y,final_z,impact_delta_x,impact_delta_y,impact_delta_z,impact_delta_mag,rest_delta_mag,vs_hole_mag");
+                sb.AppendLine("shot,wind_state,had_airborne_impact,out_of_bounds,shot_distance_m,flight_s,wind_x,wind_z,wind_mag,wind_factor,cross_wind_factor,air_drag,swing_power_mul,power_pct,pitch_deg,origin_x,origin_y,origin_z,hole_x,hole_y,hole_z,predict_x,predict_y,predict_z,impact_x,impact_y,impact_z,final_x,final_y,final_z,impact_delta_x,impact_delta_y,impact_delta_z,impact_delta_mag,rest_delta_mag,vs_hole_mag");
                 telemetryCsvHeaderWritten = true;
             }
 
@@ -261,6 +293,7 @@ public partial class SuperHackerGolf
             sb.Append(telemetryShotCounter.ToString(ic)).Append(',')
               .Append(windState).Append(',')
               .Append(telemetryImpactRecorded ? "1" : "0").Append(',')
+              .Append(outOfBounds ? "1" : "0").Append(',')
               .Append(shotDistance.ToString("0.###", ic)).Append(',')
               .Append(flightTime.ToString("0.###", ic)).Append(',')
               .Append(telemetryWindAtRelease.x.ToString("0.###", ic)).Append(',')

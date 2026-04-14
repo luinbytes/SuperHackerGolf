@@ -4,7 +4,7 @@ using System.Reflection;
 using MelonLoader;
 using UnityEngine;
 
-public partial class MimiMod
+public partial class SuperHackerGolf
 {
     // ── Anti-cheat rate awareness (D5 graft) ───────────────────────────────────
     //
@@ -85,7 +85,7 @@ public partial class MimiMod
 
         if (cachedAntiCheatRateCheckerType == null)
         {
-            MelonLogger.Msg("[MimiMod] AntiCheat types not resolved — using fallback rate floor 0.5s");
+            MelonLogger.Msg("[SuperHackerGolf] AntiCheat types not resolved — using fallback rate floor 0.5s");
             return;
         }
 
@@ -93,7 +93,7 @@ public partial class MimiMod
         TrySubscribeToDetectionEvents();
 
         MelonLogger.Msg(
-            $"[MimiMod] AntiCheat awareness online. Floor between automated actions: {(cachedExpectedMinTimeBetweenHits * antiCheatSafetyMargin):F3}s");
+            $"[SuperHackerGolf] AntiCheat awareness online. Floor between automated actions: {(cachedExpectedMinTimeBetweenHits * antiCheatSafetyMargin):F3}s");
     }
 
     private void TryReadExpectedMinTimeFromInstance()
@@ -179,7 +179,7 @@ public partial class MimiMod
                 return;
             }
 
-            MethodInfo handler = typeof(MimiMod).GetMethod(nameof(OnAntiCheatDetectionEventFired), BindingFlags.NonPublic | BindingFlags.Static);
+            MethodInfo handler = typeof(SuperHackerGolf).GetMethod(nameof(OnAntiCheatDetectionEventFired), BindingFlags.NonPublic | BindingFlags.Static);
             if (handler == null)
             {
                 return;
@@ -206,7 +206,7 @@ public partial class MimiMod
             if (wrapped == null)
             {
                 // Couldn't bind — fall back to logging that the event exists but we can't hook.
-                MelonLogger.Msg($"[MimiMod] {t.Name}.{eventName} event present but delegate type {handlerType.Name} couldn't be bound; skipping canary");
+                MelonLogger.Msg($"[SuperHackerGolf] {t.Name}.{eventName} event present but delegate type {handlerType.Name} couldn't be bound; skipping canary");
                 return;
             }
 
@@ -231,11 +231,11 @@ public partial class MimiMod
             }
 
             addMethod.Invoke(instance, new object[] { wrapped });
-            MelonLogger.Msg($"[MimiMod] Hooked anti-cheat canary: {t.Name}.{eventName}");
+            MelonLogger.Msg($"[SuperHackerGolf] Hooked anti-cheat canary: {t.Name}.{eventName}");
         }
         catch (Exception ex)
         {
-            MelonLogger.Warning($"[MimiMod] anti-cheat canary subscribe failed on {t.Name}.{eventName}: {ex.GetType().Name}");
+            MelonLogger.Warning($"[SuperHackerGolf] anti-cheat canary subscribe failed on {t.Name}.{eventName}: {ex.GetType().Name}");
         }
     }
 

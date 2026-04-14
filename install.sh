@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Builds MimiMod and copies the DLL into the game's MelonLoader Mods folder.
+# Builds SuperHackerGolf and copies the DLL into the game's MelonLoader Mods folder.
 #
 # REQUIREMENTS:
 #   - MelonLoader must be installed into the game folder first
-#     (run Installer/MimiModInstaller.exe via Proton, or unzip MelonLoader.x64.zip
+#     (run Installer/MelonLoader.x64.zip via Proton, or unzip MelonLoader.x64.zip
 #      into the game folder and launch once so MelonLoader generates its dirs)
 #   - Unity reference DLLs are read from the game's Managed folder at build time
 #   - r2modman's BepInEx winhttp.dll should be removed or the game should be
@@ -15,9 +15,9 @@ GAME_ROOT="/mnt/ssd/.games/steamapps/common/Super Battle Golf"
 MODS_DIR="$GAME_ROOT/Mods"
 
 echo "Building..."
-dotnet build -c Release --nologo -v q
+dotnet build SuperHackerGolf.csproj -c Release --nologo -v q
 
-SRC="bin/Release/MimiMod.dll"
+SRC="bin/Release/SuperHackerGolf.dll"
 if [[ ! -f "$SRC" ]]; then
     echo "ERROR: build produced no $SRC" >&2
     exit 1
@@ -29,7 +29,7 @@ if [[ ! -d "$GAME_ROOT" ]]; then
 fi
 
 mkdir -p "$MODS_DIR"
-cp "$SRC" "$MODS_DIR/MimiMod.dll"
+cp "$SRC" "$MODS_DIR/SuperHackerGolf.dll"
 
-echo "Installed to: $MODS_DIR/MimiMod.dll"
+echo "Installed to: $MODS_DIR/SuperHackerGolf.dll"
 echo "Launch the game via Steam to test (NOT via r2modman — it overrides with BepInEx proxy)."

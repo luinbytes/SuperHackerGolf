@@ -7,10 +7,10 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-[assembly: MelonInfo(typeof(MimiMod), "Mimi Mod", "1.0.0", "Mimi")]
+[assembly: MelonInfo(typeof(SuperHackerGolf), "SuperHackerGolf", "1.0.0", "luinbytes")]
 [assembly: MelonGame]
 
-public partial class MimiMod : MelonMod
+public partial class SuperHackerGolf : MelonMod
 {
     private Component playerMovement;
     private Component playerGolfer;
@@ -170,7 +170,7 @@ public partial class MimiMod : MelonMod
     private readonly float predictedPathRebuildPowerEpsilon = 0.0025f;
     private readonly float predictedPathRebuildPitchEpsilon = 0.05f;
 
-    private readonly string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Mods", "MimiMod.cfg");
+    private readonly string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Mods", "SuperHackerGolf.cfg");
     private string assistToggleKeyName = "F";
     private string coffeeBoostKeyName = "F2";
     private string nearestBallModeKeyName = "F3";

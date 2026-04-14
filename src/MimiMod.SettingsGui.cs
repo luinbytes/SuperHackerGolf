@@ -2,7 +2,7 @@ using MelonLoader;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public partial class MimiMod
+public partial class SuperHackerGolf
 {
     // ── In-game clickable settings GUI (E1 graft) ──────────────────────────────
     //
@@ -52,7 +52,7 @@ public partial class MimiMod
             unchecked((int)0x4D494D49), // 'MIMI'
             settingsWindowRect,
             DrawSettingsWindow,
-            "Mimi Mod — Settings",
+            "SuperHackerGolf — Settings",
             cachedWindowStyle);
     }
 
@@ -109,7 +109,7 @@ public partial class MimiMod
     {
         settingsScrollPosition = GUILayout.BeginScrollView(settingsScrollPosition);
 
-        GUILayout.Label($"Mimi Mod v1.0.1 + grafts    [{settingsGuiKeyLabel}] to toggle", cachedLabelStyle);
+        GUILayout.Label($"SuperHackerGolf v1.0    [{settingsGuiKeyLabel}] to toggle", cachedLabelStyle);
         GUILayout.Space(4);
 
         // ── Accuracy section ────────────────────────────────────────────────

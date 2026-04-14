@@ -3,7 +3,7 @@ using System.Reflection;
 using HarmonyLib;
 using MelonLoader;
 
-public partial class MimiMod
+public partial class SuperHackerGolf
 {
     // ── Anti-cheat bypass (D5 rewrite) ─────────────────────────────────────────
     //
@@ -74,21 +74,21 @@ public partial class MimiMod
                 MethodInfo target = AccessTools.Method(rateCheckerType, "RegisterHit", Type.EmptyTypes);
                 if (target != null)
                 {
-                    MethodInfo prefix = typeof(MimiMod).GetMethod(
+                    MethodInfo prefix = typeof(SuperHackerGolf).GetMethod(
                         nameof(AntiCheatRegisterHitPrefix),
                         BindingFlags.NonPublic | BindingFlags.Static);
                     harmony.Patch(target, new HarmonyMethod(prefix));
                     patched++;
-                    MelonLogger.Msg("[MimiMod] Patched AntiCheatRateChecker.RegisterHit");
+                    MelonLogger.Msg("[SuperHackerGolf] Patched AntiCheatRateChecker.RegisterHit");
                 }
                 else
                 {
-                    MelonLogger.Warning("[MimiMod] AntiCheatRateChecker.RegisterHit method not found for patching");
+                    MelonLogger.Warning("[SuperHackerGolf] AntiCheatRateChecker.RegisterHit method not found for patching");
                 }
             }
             else
             {
-                MelonLogger.Warning("[MimiMod] AntiCheatRateChecker type not found — bypass will be partial");
+                MelonLogger.Warning("[SuperHackerGolf] AntiCheatRateChecker type not found — bypass will be partial");
             }
 
             if (perPlayerType != null)
@@ -106,31 +106,31 @@ public partial class MimiMod
 
                 if (target != null)
                 {
-                    MethodInfo prefix = typeof(MimiMod).GetMethod(
+                    MethodInfo prefix = typeof(SuperHackerGolf).GetMethod(
                         nameof(AntiCheatPerPlayerRegisterHitPrefix),
                         BindingFlags.NonPublic | BindingFlags.Static);
                     harmony.Patch(target, new HarmonyMethod(prefix));
                     patched++;
-                    MelonLogger.Msg("[MimiMod] Patched AntiCheatPerPlayerRateChecker.RegisterHit");
+                    MelonLogger.Msg("[SuperHackerGolf] Patched AntiCheatPerPlayerRateChecker.RegisterHit");
                 }
                 else
                 {
-                    MelonLogger.Warning("[MimiMod] AntiCheatPerPlayerRateChecker.RegisterHit method not found for patching");
+                    MelonLogger.Warning("[SuperHackerGolf] AntiCheatPerPlayerRateChecker.RegisterHit method not found for patching");
                 }
             }
 
             if (patched == 0)
             {
-                MelonLogger.Warning("[MimiMod] Anti-cheat bypass installed 0 patches — types unavailable at startup");
+                MelonLogger.Warning("[SuperHackerGolf] Anti-cheat bypass installed 0 patches — types unavailable at startup");
             }
             else
             {
-                MelonLogger.Msg($"[MimiMod] Anti-cheat bypass online ({patched} patches applied)");
+                MelonLogger.Msg($"[SuperHackerGolf] Anti-cheat bypass online ({patched} patches applied)");
             }
         }
         catch (Exception ex)
         {
-            MelonLogger.Warning($"[MimiMod] Anti-cheat bypass install failed: {ex.GetType().Name}: {ex.Message}");
+            MelonLogger.Warning($"[SuperHackerGolf] Anti-cheat bypass install failed: {ex.GetType().Name}: {ex.Message}");
         }
     }
 

@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public partial class MimiMod
+public partial class SuperHackerGolf
 {
     [System.Obsolete]
     public override void OnApplicationStart()

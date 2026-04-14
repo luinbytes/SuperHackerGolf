@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public partial class MimiMod
+public partial class SuperHackerGolf
 {
     // ── Analytic projectile solvers (D3 graft) ─────────────────────────────────
     //

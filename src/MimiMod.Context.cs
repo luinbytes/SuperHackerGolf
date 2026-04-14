@@ -2,7 +2,7 @@ using System;
 using System.Reflection;
 using UnityEngine;
 
-public partial class MimiMod
+public partial class SuperHackerGolf
 {
     private void ResolvePlayerContext()
     {

@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-public partial class MimiMod
+public partial class SuperHackerGolf
 {
     private GameObject impactPreviewPanelObject;
     private RawImage impactPreviewRawImage;

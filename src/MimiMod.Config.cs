@@ -5,7 +5,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public partial class MimiMod
+public partial class SuperHackerGolf
 {
     private void LoadOrCreateConfig()
     {
@@ -184,7 +184,7 @@ public partial class MimiMod
         StringBuilder builder = new StringBuilder(768);
         if (includeComments)
         {
-            builder.AppendLine("# Mimi Mod config");
+            builder.AppendLine("# SuperHackerGolf config");
             builder.AppendLine("# Edits via the in-game settings GUI (default F8) persist back here.");
             builder.AppendLine();
         }
@@ -267,11 +267,11 @@ public partial class MimiMod
                 Directory.CreateDirectory(configDirectory);
             }
             File.WriteAllText(configPath, BuildConfigTextFromCurrentState(true), Encoding.ASCII);
-            MelonLoader.MelonLogger.Msg($"[MimiMod] Config saved to {configPath}");
+            MelonLoader.MelonLogger.Msg($"[SuperHackerGolf] Config saved to {configPath}");
         }
         catch (Exception ex)
         {
-            MelonLoader.MelonLogger.Warning($"[MimiMod] Config save failed: {ex.GetType().Name}: {ex.Message}");
+            MelonLoader.MelonLogger.Warning($"[SuperHackerGolf] Config save failed: {ex.GetType().Name}: {ex.Message}");
         }
     }
 

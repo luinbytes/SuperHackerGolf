@@ -1,63 +1,84 @@
-# MimiMod (forked) — Super Battle Golf MelonLoader Mod
+# SuperHackerGolf
 
-Client-side aim assist + trajectory prediction + impact preview mod for **Super Battle Golf**, built on MelonLoader.
+Client-side cheat mod for **Super Battle Golf** built on MelonLoader.
 
-This repo is a fork of [MidTano/Mimi-Mod-Super-Battle-Golf](https://github.com/MidTano/Mimi-Mod-Super-Battle-Golf) with additional features grafted on:
+Made by **[@luinbytes](https://github.com/luinbytes)** — Discord: `@luinbytes` · Portfolio: <https://luinbytes.github.io>
 
-- Weapon assist (lock-on cone for item phase)
-- Analytic pitch solver (complements the existing binary-search release timing)
-- Wind compensation in trajectory prediction
-- Defensive reflection fallback cascades (multi-name method/field lookups for game-update resilience)
-- Anticheat rate-limit awareness (self-throttling against the game's `AntiCheatRateChecker`)
+## Features
+
+- **Aim assist** — orbit-camera auto-aim toward the hole
+- **Auto-release** — releases the swing at the optimal power to land on the hole
+- **Wind-aware trajectory prediction** — exact reimplementation of `Hittable.ApplyAirDamping` so the predicted line matches the real ball physics (reads `WindFactor` / `CrossWindFactor` from the game's `WindHittableSettings` via reflection)
+- **Crosswind aim compensation** — 2D solver that nudges the aim target so the ball curves into the hole under wind (long shots only — skipped under 15m where drift is negligible)
+- **Overcharge clamp** — disables the game's 115% overcharge cap by default so shots stay accurate
+- **Manual-charge mode** — when off, the player charges the swing manually and the mod only releases at optimal power
+- **Impact preview window** — offscreen camera showing the predicted landing zone
+- **Trail visualizers** — predicted, frozen, and actual shot trails as LineRenderers
+- **Anti-cheat bypass** — HarmonyX-patches `AntiCheatRateChecker.RegisterHit` and `AntiCheatPerPlayerRateChecker.RegisterHit` to always return `true`, so the game's rate-limit detection never fires (runs server-side; fully effective in solo / host play)
+- **Cosmetics unlock** — unlocks all cosmetics via reflection
+- **Coffee speed boost** + **nearest-ball mode** hotkeys
+- **In-game clickable settings GUI** — IMGUI window (default F8) with toggles, sliders, and save/reload buttons
+
+## Default hotkeys
+
+| Key  | Action                        |
+|------|-------------------------------|
+| `F`  | Toggle aim assist             |
+| `F2` | Coffee speed boost            |
+| `F3` | Nearest-ball mode             |
+| `F4` | Unlock all cosmetics          |
+| `F8` | Open settings GUI             |
+| RMB  | Auto-aim camera (hold)        |
 
 ## Requirements
 
 - Super Battle Golf installed
-- MelonLoader 0.7.x installed into the game folder (not via r2modman — see notes)
+- MelonLoader 0.7.2 installed into the game folder (do **not** use r2modman's BepInEx proxy — it shadows MelonLoader's `version.dll`)
 - .NET SDK 6.0+ for building
+
+Steam launch options must include the Wine DLL override so the game loads MelonLoader's `version.dll`:
+
+```
+WINEDLLOVERRIDES="version=n,b" %command%
+```
 
 ## Building
 
 ```bash
 dotnet build -c Release
-```
-
-Outputs `bin/Release/MimiMod.dll`. The csproj references:
-- MelonLoader DLLs from `ci/melonloader/MelonLoader/net35/` (committed? no — fetched once by `scripts/fetch-melonloader.sh`)
-- Unity game DLLs from `$(GamePath)` (set in the csproj — defaults to `/mnt/ssd/.games/steamapps/common/Super Battle Golf/Super Battle Golf_Data/Managed`)
-
-## Installing
-
-```bash
 ./install.sh
 ```
 
-Builds and copies `MimiMod.dll` into the game's `Mods/` folder. Launch the game via **Steam directly**, not r2modman (r2modman's BepInEx `winhttp.dll` proxy shadows MelonLoader's `version.dll` proxy).
+Outputs `bin/Release/SuperHackerGolf.dll` and copies it into `<gamefolder>/Mods/`.
 
 ## Project structure
 
 ```
 src/
   MimiMod.cs              — main partial class, reflection caches, fields
+  MimiMod.AntiCheat.cs    — anti-cheat detection event canary
+  MimiMod.AntiCheatBypass.cs — HarmonyX bypass for RegisterHit
   MimiMod.Camera.cs       — orbit-camera aim assist via reflection
   MimiMod.Config.cs       — plaintext key=value config parser
   MimiMod.Context.cs      — PlayerMovement / PlayerGolfer / GolfBall resolution
-  MimiMod.Cosmetics.cs    — unlock all cosmetics
-  MimiMod.ImpactPreview.cs— offscreen RenderTexture impact preview window
+  MimiMod.Cosmetics.cs    — cosmetics unlock
+  MimiMod.ImpactPreview.cs — offscreen RenderTexture impact preview window
+  MimiMod.PitchSolver.cs  — analytic closed-form pitch / speed solver library
   MimiMod.Runtime.cs      — OnUpdate / OnLateUpdate lifecycle
+  MimiMod.SettingsGui.cs  — IMGUI settings window
   MimiMod.Swing.cs        — auto swing release with binary-search timing
-  MimiMod.Trajectory.cs   — forward-sim trajectory with optional drag
+  MimiMod.Trajectory.cs   — exact game forward-sim + wind-aware solvers
   MimiMod.UI.cs           — Canvas + TextMeshProUGUI HUD
+  MimiMod.Wind.cs         — WindManager + HittableSettings reflection
   Helpers/
     ModReflectionHelper.cs — reflection member caching + fallback cascades
     ModTextHelper.cs       — string helpers
 ```
 
-## Anticheat awareness
+## Anti-cheat audit
 
-The game ships an `AntiCheat.dll` containing `AntiCheatRateChecker` + `AntiCheatPerPlayerRateChecker` — a server-side rate limiter on networked actions. It emits `PlayerSuspiciousActivityDetected` / `PlayerConfirmedCheatingDetected` events when per-connection hit rates exceed configured thresholds. This mod reads `expectedMinTimeBetweenHits` at runtime and throttles auto-actions to respect it. See `src/MimiMod.AntiCheat.cs` (once grafted).
+The game ships `AntiCheat.dll` containing `AntiCheatRateChecker` + `AntiCheatPerPlayerRateChecker` — a server-side rate limiter on networked actions. `RegisterHit` increments a counter when hits come faster than `expectedMinTimeBetweenHits`; crossing `minSuspiciousHitCount` / `minConfirmedCheatHitCount` fires detection events. The game's own `VoteKickManager` subscribes to these events and initiates an automatic vote-kick (not a ban). This mod Harmony-patches both `RegisterHit` methods with a prefix that returns `true` and skips the original, so the counter never increments and events never fire.
 
 ## Credits
 
-- Original base: [MidTano/Mimi-Mod-Super-Battle-Golf](https://github.com/MidTano/Mimi-Mod-Super-Battle-Golf)
-- Fork maintenance: luinbytes
+Made by [@luinbytes](https://github.com/luinbytes) — <https://luinbytes.github.io>

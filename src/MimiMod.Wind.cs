@@ -4,7 +4,7 @@ using System.Text;
 using MelonLoader;
 using UnityEngine;
 
-public partial class MimiMod
+public partial class SuperHackerGolf
 {
     // ── Wind compensation (D2 graft, E2 rewrite) ───────────────────────────────
     //
@@ -64,8 +64,11 @@ public partial class MimiMod
     private PropertyInfo cachedHittableSettingsWindProperty; // HittableSettings.Wind
     private PropertyInfo cachedWindFactorProperty;          // WindHittableSettings.WindFactor
     private PropertyInfo cachedCrossWindFactorProperty;     // WindHittableSettings.CrossWindFactor
-    private float cachedBallWindFactor = 1f;
-    private float cachedBallCrossWindFactor = 1f;
+    // Fallback values chosen from observed Super Battle Golf ball factors:
+    // WindFactor=0.1, CrossWindFactor=0.05. Starting at 1.0 was wrong by ~10-20x
+    // and caused prediction to overstate wind drag before reflection resolved.
+    private float cachedBallWindFactor = 0.1f;
+    private float cachedBallCrossWindFactor = 0.05f;
 
     // E9 — exact game launch-speed formula reflection.
     // Ground truth from Hittable.GetSwingHitSpeed:
@@ -103,12 +106,12 @@ public partial class MimiMod
         }
         catch (Exception ex)
         {
-            MelonLogger.Warning($"[MimiMod] Wind: assembly scan failed: {ex.GetType().Name}");
+            MelonLogger.Warning($"[SuperHackerGolf] Wind: assembly scan failed: {ex.GetType().Name}");
         }
 
         if (cachedWindManagerType == null)
         {
-            MelonLogger.Warning("[MimiMod] Wind: WindManager type not found in any loaded assembly. Wind prediction disabled.");
+            MelonLogger.Warning("[SuperHackerGolf] Wind: WindManager type not found in any loaded assembly. Wind prediction disabled.");
             windDiagnosticReadout = "(WindManager type missing)";
             return;
         }
@@ -148,7 +151,7 @@ public partial class MimiMod
         try
         {
             StringBuilder sb = new StringBuilder(256);
-            sb.Append("[MimiMod] Wind API resolved: ");
+            sb.Append("[SuperHackerGolf] Wind API resolved: ");
             sb.Append("Wind=").Append(cachedWindVectorProperty != null ? "Y" : "n");
             sb.Append(" CurDir=").Append(cachedWindDirectionProperty != null ? "Y" : "n");
             sb.Append(" CurSpd=").Append(cachedWindSpeedProperty != null ? "Y" : "n");
@@ -294,7 +297,7 @@ public partial class MimiMod
         }
         catch (Exception ex)
         {
-            MelonLogger.Warning($"[MimiMod] Wind: FindObjectsByType failed: {ex.GetType().Name}");
+            MelonLogger.Warning($"[SuperHackerGolf] Wind: FindObjectsByType failed: {ex.GetType().Name}");
         }
 
         return null;
@@ -344,7 +347,7 @@ public partial class MimiMod
             }
             if (hittable == null)
             {
-                MelonLogger.Msg("[MimiMod] Wind: Hittable component not found on golfBall");
+                MelonLogger.Msg("[SuperHackerGolf] Wind: Hittable component not found on golfBall");
                 return;
             }
             cachedBallHittableComponent = hittable;
@@ -430,11 +433,11 @@ public partial class MimiMod
                 }
             }
 
-            MelonLogger.Msg($"[MimiMod] Ball factors: WindFactor={cachedBallWindFactor:F3} CrossWindFactor={cachedBallCrossWindFactor:F3} MaxPowerSwingHitSpeed={cachedBallMaxSwingHitSpeed:F2} MaxPowerPuttHitSpeed={cachedBallMaxPuttHitSpeed:F2}");
+            MelonLogger.Msg($"[SuperHackerGolf] Ball factors: WindFactor={cachedBallWindFactor:F3} CrossWindFactor={cachedBallCrossWindFactor:F3} MaxPowerSwingHitSpeed={cachedBallMaxSwingHitSpeed:F2} MaxPowerPuttHitSpeed={cachedBallMaxPuttHitSpeed:F2}");
         }
         catch (Exception ex)
         {
-            MelonLogger.Warning($"[MimiMod] RefreshBallWindFactors failed: {ex.GetType().Name}: {ex.Message}");
+            MelonLogger.Warning($"[SuperHackerGolf] RefreshBallWindFactors failed: {ex.GetType().Name}: {ex.Message}");
         }
     }
 

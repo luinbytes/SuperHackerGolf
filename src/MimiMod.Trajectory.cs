@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-public partial class MimiMod
+public partial class SuperHackerGolf
 {
     private void UpdateTrails()
     {
@@ -917,6 +917,71 @@ public partial class MimiMod
         return true;
     }
 
+    // E10: 2D aim + speed compensation solver.
+    //
+    // The 1D speed-only solver (TrySolveLaunchSpeedWindAware) aims directly at
+    // the hole and finds the best power for that aim. Crosswind drift is never
+    // cancelled because the aim direction isn't touched. User reported the
+    // ball lands "slightly left of the hole" in a left-blowing crosswind —
+    // exactly what this solver produces.
+    //
+    // Fix: iteratively nudge the aim target by the landing miss vector so
+    // under wind the ball curves into the hole. Converges in 3–5 iterations
+    // because wind force is small relative to ball speed (near-linear response
+    // to aim changes). Emits both the compensated aim target AND the optimal
+    // speed so CalculateIdealSwingParameters can update currentAimTargetPosition
+    // — that propagates to Mimi's predicted trail, camera aim assist, and the
+    // release-power selection.
+    private bool TrySolveWindCompensatedAim(Vector3 shotOrigin, Vector3 holePos, float swingPitch,
+                                             out Vector3 compensatedAim, out float solvedSpeed)
+    {
+        compensatedAim = holePos;
+        solvedSpeed = 0f;
+
+        Vector3 wind = GetCachedWindVector();
+        float ballWF = GetBallWindFactor();
+        float ballCWF = GetBallCrossWindFactor();
+        float airDrag = GetRuntimeLinearAirDragFactor();
+
+        for (int iter = 0; iter < 6; iter++)
+        {
+            // Find best speed for the *current* compensated aim direction.
+            if (!TrySolveLaunchSpeedWindAware(shotOrigin, compensatedAim, swingPitch, out float iterSpeed))
+            {
+                return false;
+            }
+            solvedSpeed = iterSpeed;
+
+            // Forward-sim at that speed to see where the ball *actually* lands.
+            Vector3 horizToAim = compensatedAim - shotOrigin;
+            horizToAim.y = 0f;
+            if (horizToAim.sqrMagnitude < 0.0001f) return true;
+            Vector3 aimDirHoriz = horizToAim.normalized;
+            float pitchRad = swingPitch * Mathf.Deg2Rad;
+            Vector3 launchDir = aimDirHoriz * Mathf.Cos(pitchRad) + Vector3.up * Mathf.Sin(pitchRad);
+            Vector3 landing = SimulateBallLandingPoint(shotOrigin, launchDir, iterSpeed,
+                                                       wind, ballWF, ballCWF, airDrag, holePos.y);
+
+            // Horizontal miss — we ignore Y because the landing sim already
+            // terminates at holePos.y on the way down.
+            Vector3 miss = holePos - landing;
+            miss.y = 0f;
+            float missSq = miss.sqrMagnitude;
+            if (missSq < 0.25f) // < 0.5m from hole center
+            {
+                return true;
+            }
+
+            // Nudge aim by the full miss vector. Damping wasn't needed in
+            // practice — the wind response is close enough to linear that a
+            // single-step correction converges within 3 iterations.
+            compensatedAim += miss;
+        }
+
+        // Didn't converge but last iteration is close enough for gameplay.
+        return true;
+    }
+
     // E8b: wind-aware launch-speed solver.
     //
     // Forward-sims the ball using the exact Hittable.ApplyAirDamping physics
@@ -1136,11 +1201,31 @@ public partial class MimiMod
             // (e.g. target is unreachable at this pitch).
             RefreshBallWindFactors();
             float physicsPower;
-            if (TrySolveLaunchSpeedWindAware(shotOrigin, currentAimTargetPosition, idealSwingPitch, out float windAwareSpeed))
+
+            // E10: run the 2D aim+speed solver against the RAW hole target. It
+            // returns a wind-compensated aim point that, when launched toward
+            // under current wind, curves back to the actual hole. We then
+            // override currentAimTargetPosition with this compensated target so
+            // Mimi's predicted trail, the auto-aim camera, and the power solver
+            // all work in unison to land the ball on the hole.
+            Vector3 rawHoleTarget = currentAimTargetPosition;
+            // Skip 2D aim compensation on close shots — crosswind drift at <15m
+            // is negligible vs. the search quantization of the 1D solver, and
+            // running the 2D nudge can destabilize close-range power calcs.
+            bool useCompensation = horizontalDistance >= 15f;
+            if (useCompensation && TrySolveWindCompensatedAim(shotOrigin, rawHoleTarget, idealSwingPitch,
+                                            out Vector3 compensatedAim, out float windAwareSpeed))
             {
-                // Use Mimi's piecewise-linear EstimatePowerFromLaunchSpeed inverse
-                // so the speed↔power conversion is symmetric with the forward sim.
+                currentAimTargetPosition = compensatedAim;
+                toTarget = currentAimTargetPosition - shotOrigin;
+                horizontalToTarget = new Vector3(toTarget.x, 0f, toTarget.z);
+                horizontalDistance = horizontalToTarget.magnitude;
+                heightDifference = toTarget.y;
                 physicsPower = Mathf.Clamp(EstimatePowerFromLaunchSpeed(windAwareSpeed), 0.05f, 2f);
+            }
+            else if (TrySolveLaunchSpeedWindAware(shotOrigin, rawHoleTarget, idealSwingPitch, out float closeShotSpeed))
+            {
+                physicsPower = Mathf.Clamp(EstimatePowerFromLaunchSpeed(closeShotSpeed), 0.05f, 2f);
             }
             else
             {

@@ -244,7 +244,7 @@ internal static class ModReflectionHelper
         }
         try
         {
-            MelonLoader.MelonLogger.Msg($"[MimiMod] resolved {instanceType.Name}.{label} via '{winningName}'");
+            MelonLoader.MelonLogger.Msg($"[SuperHackerGolf] resolved {instanceType.Name}.{label} via '{winningName}'");
         }
         catch
         {
@@ -264,7 +264,7 @@ internal static class ModReflectionHelper
         try
         {
             MelonLoader.MelonLogger.Warning(
-                $"[MimiMod] {instanceType.Name}.{label} cascade missed all candidates: [{string.Join(",", candidateNames)}]");
+                $"[SuperHackerGolf] {instanceType.Name}.{label} cascade missed all candidates: [{string.Join(",", candidateNames)}]");
         }
         catch
         {

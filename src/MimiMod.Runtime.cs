@@ -7,6 +7,7 @@ public partial class MimiMod
     public override void OnApplicationStart()
     {
         LoadOrCreateConfig();
+        TryInstallAntiCheatBypass();
     }
 
     public override void OnUpdate()

@@ -67,6 +67,19 @@ public partial class MimiMod
     private float cachedBallWindFactor = 1f;
     private float cachedBallCrossWindFactor = 1f;
 
+    // E9 — exact game launch-speed formula reflection.
+    // Ground truth from Hittable.GetSwingHitSpeed:
+    //   launchSpeed = power * SwingHittableSettings.MaxPowerSwingHitSpeed
+    //                       * MatchSetupRules.GetValue(Rule.SwingPower)  // Rule 5
+    // Mimi's hardcoded piecewise-linear curve was a tuned guess; we now use
+    // the real per-ball MaxPowerSwingHitSpeed and reuse Mimi's existing
+    // TryGetServerSwingPowerMultiplier for the match setup multiplier.
+    private PropertyInfo cachedHittableSettingsSwingProperty;   // HittableSettings.Swing
+    private PropertyInfo cachedMaxPowerSwingHitSpeedProperty;   // SwingHittableSettings.MaxPowerSwingHitSpeed
+    private PropertyInfo cachedMaxPowerPuttHitSpeedProperty;    // SwingHittableSettings.MaxPowerPuttHitSpeed
+    private float cachedBallMaxSwingHitSpeed = 170f;  // fallback = Mimi's old 1.0-power value
+    private float cachedBallMaxPuttHitSpeed = 85f;
+
     private void EnsureWindReflectionInitialized()
     {
         if (windReflectionInitialized)
@@ -381,7 +394,43 @@ public partial class MimiMod
                 if (v is float f) cachedBallCrossWindFactor = f;
             }
 
-            MelonLogger.Msg($"[MimiMod] Ball wind factors: WindFactor={cachedBallWindFactor:F3}, CrossWindFactor={cachedBallCrossWindFactor:F3}");
+            // E9: also read SwingHittableSettings.MaxPower*HitSpeed for the exact launch speed formula.
+            if (cachedHittableSettingsSwingProperty == null)
+            {
+                cachedHittableSettingsSwingProperty = ModReflectionHelper.GetPropertyCascade(
+                    settingsType, "Swing", "Swing");
+            }
+            if (cachedHittableSettingsSwingProperty != null)
+            {
+                object swingSettings = cachedHittableSettingsSwingProperty.GetValue(settings, null);
+                if (swingSettings != null)
+                {
+                    Type swingType = swingSettings.GetType();
+                    if (cachedMaxPowerSwingHitSpeedProperty == null)
+                    {
+                        cachedMaxPowerSwingHitSpeedProperty = ModReflectionHelper.GetPropertyCascade(
+                            swingType, "MaxPowerSwingHitSpeed", "MaxPowerSwingHitSpeed");
+                    }
+                    if (cachedMaxPowerPuttHitSpeedProperty == null)
+                    {
+                        cachedMaxPowerPuttHitSpeedProperty = ModReflectionHelper.GetPropertyCascade(
+                            swingType, "MaxPowerPuttHitSpeed", "MaxPowerPuttHitSpeed");
+                    }
+
+                    if (cachedMaxPowerSwingHitSpeedProperty != null)
+                    {
+                        object v = cachedMaxPowerSwingHitSpeedProperty.GetValue(swingSettings, null);
+                        if (v is float f) cachedBallMaxSwingHitSpeed = f;
+                    }
+                    if (cachedMaxPowerPuttHitSpeedProperty != null)
+                    {
+                        object v = cachedMaxPowerPuttHitSpeedProperty.GetValue(swingSettings, null);
+                        if (v is float f) cachedBallMaxPuttHitSpeed = f;
+                    }
+                }
+            }
+
+            MelonLogger.Msg($"[MimiMod] Ball factors: WindFactor={cachedBallWindFactor:F3} CrossWindFactor={cachedBallCrossWindFactor:F3} MaxPowerSwingHitSpeed={cachedBallMaxSwingHitSpeed:F2} MaxPowerPuttHitSpeed={cachedBallMaxPuttHitSpeed:F2}");
         }
         catch (Exception ex)
         {
@@ -389,6 +438,34 @@ public partial class MimiMod
         }
     }
 
+    /// <summary>
+    /// Exact game launch-speed formula: launchSpeed = power * MaxPowerSwingHitSpeed * MatchSetupRules.SwingPower.
+    /// Replaces Mimi's piecewise-linear EstimateLaunchSpeedFromPower guess.
+    /// Reuses Mimi's TryGetServerSwingPowerMultiplier (defined in MimiMod.Trajectory.cs)
+    /// for the per-match multiplier.
+    /// </summary>
+    internal float GetGameAccurateLaunchSpeed(float power, bool isPutt = false)
+    {
+        float maxSpeed = isPutt ? cachedBallMaxPuttHitSpeed : cachedBallMaxSwingHitSpeed;
+        float mul;
+        if (!TryGetServerSwingPowerMultiplier(out mul)) mul = 1f;
+        return Mathf.Max(0f, power) * maxSpeed * mul;
+    }
+
+    /// <summary>
+    /// Inverse of GetGameAccurateLaunchSpeed: find the power needed to reach a given launch speed.
+    /// </summary>
+    internal float GetGameAccuratePowerFromLaunchSpeed(float speed, bool isPutt = false)
+    {
+        float maxSpeed = isPutt ? cachedBallMaxPuttHitSpeed : cachedBallMaxSwingHitSpeed;
+        float mul;
+        if (!TryGetServerSwingPowerMultiplier(out mul)) mul = 1f;
+        float denom = maxSpeed * mul;
+        if (denom < 0.0001f) return 1f;
+        return speed / denom;
+    }
+
     internal float GetBallWindFactor() => cachedBallWindFactor;
     internal float GetBallCrossWindFactor() => cachedBallCrossWindFactor;
+    internal float GetBallMaxSwingHitSpeed() => cachedBallMaxSwingHitSpeed;
 }

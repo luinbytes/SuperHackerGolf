@@ -282,12 +282,18 @@ public partial class SuperHackerGolf
         }
 
         Vector3 segmentDirection = segment / segmentDistance;
+        // E11: use the game's own BallGroundableMask (reflected from
+        // GameManager.LayerSettings) so the raycast only hits ground colliders
+        // — not trees, walls, decorations, or other mid-air obstacles. That
+        // matches the layer set Hittable.IsGrounded uses and stops the forward
+        // sim from terminating prematurely at tree/wall clips.
+        int layerMask = GetBallGroundableMask();
         int hitCount = Physics.RaycastNonAlloc(
             startPoint,
             segmentDirection,
             impactPreviewRaycastHits,
             segmentDistance,
-            Physics.DefaultRaycastLayers,
+            layerMask,
             QueryTriggerInteraction.Ignore);
         float bestDistance = float.MaxValue;
 
@@ -317,7 +323,7 @@ public partial class SuperHackerGolf
             Vector3.down,
             impactPreviewGroundProbeHits,
             impactPreviewProbeHeight * 2f,
-            Physics.DefaultRaycastLayers,
+            GetBallGroundableMask(),
             QueryTriggerInteraction.Ignore);
         float bestDistance = float.MaxValue;
         bool foundSurface = false;

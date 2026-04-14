@@ -506,9 +506,10 @@ public partial class SuperHackerGolf
 
                     // Per-frame ground raycast to follow terrain curvature and
                     // update the ground normal as the ball rolls over slopes.
+                    // Uses BallGroundableMask so trees/walls don't hijack the probe.
                     Vector3 probeOrigin = position + Vector3.up * 0.5f;
                     RaycastHit groundHit;
-                    if (Physics.Raycast(probeOrigin, Vector3.down, out groundHit, 2f))
+                    if (Physics.Raycast(probeOrigin, Vector3.down, out groundHit, 2f, GetBallGroundableMask(), QueryTriggerInteraction.Ignore))
                     {
                         position = groundHit.point;
                         rollNormal = groundHit.normal.sqrMagnitude > 0.0001f ? groundHit.normal : Vector3.up;

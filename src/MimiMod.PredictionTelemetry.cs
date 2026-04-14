@@ -40,6 +40,8 @@ public partial class SuperHackerGolf
     private bool telemetryBallHasLaunched;
     private float telemetryMaxY;
     private float telemetryCaptureTime;
+    private float telemetryPrevVelY;
+    private Vector3 telemetryPrevBallPos;
     private Vector3 telemetryPredictedLanding;
     private Vector3 telemetryShotOrigin;
     private Vector3 telemetryHolePosition;
@@ -54,7 +56,6 @@ public partial class SuperHackerGolf
     private int telemetryShotCounter;
 
     private readonly float telemetryBallStopSpeed = 0.15f;
-    private readonly float telemetryBallImpactEpsilon = 0.10f;
     private readonly float telemetryMinShotTime = 0.15f;
     private readonly float telemetryMaxShotTime = 20f;
     private readonly int telemetryMaxHistory = 8;
@@ -104,6 +105,8 @@ public partial class SuperHackerGolf
         telemetryPredictedLanding = predictedLanding;
         telemetryShotOrigin = golfBall.transform.position;
         telemetryMaxY = telemetryShotOrigin.y;
+        telemetryPrevVelY = 0f;
+        telemetryPrevBallPos = telemetryShotOrigin;
         telemetryHolePosition = holePosition;
         telemetryWindAtRelease = GetCachedWindVector();
         telemetryBallWindFactorAtRelease = GetBallWindFactor();
@@ -170,35 +173,42 @@ public partial class SuperHackerGolf
             }
         }
 
-        // Track apex so we know we're in the descent phase.
+        // Track apex so we know the ball went airborne.
         if (ballPos.y > telemetryMaxY)
         {
             telemetryMaxY = ballPos.y;
         }
 
-        // Record first ground impact. Uses the PREDICTED impact Y (not the raw
-        // hole Y) as the detection threshold so uphill / downhill shots and
-        // elevated greens are handled naturally — the predicted landing's Y
-        // already reflects the terrain our forward sim hit. Works identically
-        // for wind and no-wind shots.
-        if (!telemetryImpactRecorded && ballVel.y < 0f)
+        // Detect first ground impact via VELOCITY SIGN CHANGE, not Y-threshold.
+        // Previous approach (ballY <= predictedY + 0.1) missed most shots because
+        // ball terrain Y was within epsilon of origin but never dipped below it.
+        //
+        // Signal: velocity.y was strongly negative last frame, now >= -0.1
+        // (ball is no longer falling — just bounced, slid, or stopped). Use
+        // the PREVIOUS ball position as the impact point because that's the
+        // frame right before the bounce/stop, which is when the ball was
+        // actually at ground level.
+        if (!telemetryImpactRecorded && elapsed > telemetryMinShotTime)
         {
-            // Require the ball to have risen at least 0.3m above origin (i.e. a
-            // real airborne shot, not a putt sliding along the ground) OR the
-            // predicted landing is more than 0.5m below origin (downhill).
-            bool reallyAirborne = (telemetryMaxY - telemetryShotOrigin.y) > 0.3f;
+            bool wentAirborne = (telemetryMaxY - telemetryShotOrigin.y) > 0.3f;
             bool downhillShot = telemetryPredictedLanding.y < telemetryShotOrigin.y - 0.5f;
-            if (reallyAirborne || downhillShot)
+            if (wentAirborne || downhillShot)
             {
-                // Impact when ball crosses predicted landing Y (plus a small
-                // epsilon so we catch it at the threshold, not one frame late).
-                if (ballPos.y <= telemetryPredictedLanding.y + telemetryBallImpactEpsilon)
+                bool wasFalling = telemetryPrevVelY < -0.5f;
+                bool stoppedFalling = ballVel.y >= -0.1f;
+                if (wasFalling && stoppedFalling)
                 {
-                    telemetryActualImpact = ballPos;
+                    // Use previous ball pos (one frame before the bounce) —
+                    // closer to the actual ground contact than the rebounded
+                    // current position.
+                    telemetryActualImpact = telemetryPrevBallPos;
                     telemetryImpactRecorded = true;
                 }
             }
         }
+
+        telemetryPrevVelY = ballVel.y;
+        telemetryPrevBallPos = ballPos;
 
         // Wait for ball to rest before logging the final result.
         if (elapsed < telemetryMinShotTime || ballVel.sqrMagnitude > telemetryBallStopSpeed * telemetryBallStopSpeed)
@@ -223,6 +233,14 @@ public partial class SuperHackerGolf
             outOfBounds = true;
         }
 
+        // Heuristic flag for the super club / speed boost powerup: game applies
+        // a higher swing-power multiplier so shots at "100%" go 1.5-2x farther
+        // than the forward sim predicts. Mimi reads the current multiplier via
+        // TryGetServerSwingPowerMultiplier, but if a temporary buff is applied
+        // after our release capture, we might see an anomalous mul here.
+        bool likelySuperClub = telemetryAppliedPower > 1.00f ||
+                                telemetrySwingPowerMultiplierAtRelease > 1.10f;
+
         Vector3 actualImpact = telemetryImpactRecorded ? telemetryActualImpact : finalRest;
         Vector3 impactDelta = actualImpact - telemetryPredictedLanding;
         Vector3 restDelta = finalRest - telemetryPredictedLanding;
@@ -240,10 +258,11 @@ public partial class SuperHackerGolf
 
         string impactLabel = telemetryImpactRecorded ? "impactΔ" : (outOfBounds ? "OOB_rest" : "restΔ");
         string oobTag = outOfBounds ? " [OOB]" : "";
+        string superTag = likelySuperClub ? " [SUPER]" : "";
         string summary = $"#{telemetryShotCounter} dist={shotDistance:F1}m " +
                          $"pwr={telemetryAppliedPower * 100f:F0}% " +
                          $"pitch={telemetryShotPitch:F1}° " +
-                         $"{windLabel}{oobTag} " +
+                         $"{windLabel}{oobTag}{superTag} " +
                          $"{impactLabel}=({impactDelta.x:+0.00;-0.00},{impactDelta.z:+0.00;-0.00}) |{impactDelta.magnitude:F2}|m " +
                          $"vsHole=|{vsHole.magnitude:F2}|m " +
                          $"flight={elapsed:F1}s";
@@ -264,13 +283,15 @@ public partial class SuperHackerGolf
             restDelta: restDelta,
             vsHole: vsHole,
             flightTime: elapsed,
-            outOfBounds: outOfBounds);
+            outOfBounds: outOfBounds,
+            likelySuperClub: likelySuperClub);
 
         telemetryShotInProgress = false;
     }
 
     private void AppendTelemetryCsv(float shotDistance, Vector3 finalRest, Vector3 actualImpact,
-                                     Vector3 impactDelta, Vector3 restDelta, Vector3 vsHole, float flightTime, bool outOfBounds)
+                                     Vector3 impactDelta, Vector3 restDelta, Vector3 vsHole, float flightTime,
+                                     bool outOfBounds, bool likelySuperClub)
     {
         try
         {
@@ -284,7 +305,7 @@ public partial class SuperHackerGolf
 
             if (!telemetryCsvHeaderWritten && !File.Exists(telemetryCsvPath))
             {
-                sb.AppendLine("shot,wind_state,had_airborne_impact,out_of_bounds,shot_distance_m,flight_s,wind_x,wind_z,wind_mag,wind_factor,cross_wind_factor,air_drag,swing_power_mul,power_pct,pitch_deg,origin_x,origin_y,origin_z,hole_x,hole_y,hole_z,predict_x,predict_y,predict_z,impact_x,impact_y,impact_z,final_x,final_y,final_z,impact_delta_x,impact_delta_y,impact_delta_z,impact_delta_mag,rest_delta_mag,vs_hole_mag");
+                sb.AppendLine("shot,wind_state,had_airborne_impact,out_of_bounds,super_club,shot_distance_m,flight_s,wind_x,wind_z,wind_mag,wind_factor,cross_wind_factor,air_drag,swing_power_mul,power_pct,pitch_deg,origin_x,origin_y,origin_z,hole_x,hole_y,hole_z,predict_x,predict_y,predict_z,impact_x,impact_y,impact_z,final_x,final_y,final_z,impact_delta_x,impact_delta_y,impact_delta_z,impact_delta_mag,rest_delta_mag,vs_hole_mag");
                 telemetryCsvHeaderWritten = true;
             }
 
@@ -294,6 +315,7 @@ public partial class SuperHackerGolf
               .Append(windState).Append(',')
               .Append(telemetryImpactRecorded ? "1" : "0").Append(',')
               .Append(outOfBounds ? "1" : "0").Append(',')
+              .Append(likelySuperClub ? "1" : "0").Append(',')
               .Append(shotDistance.ToString("0.###", ic)).Append(',')
               .Append(flightTime.ToString("0.###", ic)).Append(',')
               .Append(telemetryWindAtRelease.x.ToString("0.###", ic)).Append(',')

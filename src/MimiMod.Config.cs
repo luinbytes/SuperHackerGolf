@@ -47,6 +47,7 @@ public partial class SuperHackerGolf
         settingsGuiKeyName = "F8";
         allowOvercharge = false;
         instaHitEnabled = false;
+        telemetryEnabled = false;
         windStrength = 0.0041f;
         windDragStrength = 0.04f;
         actualTrailEnabled = true;
@@ -115,6 +116,9 @@ public partial class SuperHackerGolf
                     break;
                 case "insta_hit_enabled":
                     instaHitEnabled = ParseBoolOrDefault(value, instaHitEnabled);
+                    break;
+                case "telemetry_enabled":
+                    telemetryEnabled = ParseBoolOrDefault(value, telemetryEnabled);
                     break;
                 case "wind_strength":
                     windStrength = ParseFloatOrDefault(value, windStrength, 0f, 0.5f);
@@ -207,6 +211,15 @@ public partial class SuperHackerGolf
             builder.AppendLine("# insta_hit_enabled=false → you hold LMB and charge manually, the mod only releases at the optimal power.");
         }
         builder.AppendLine("insta_hit_enabled=" + (instaHitEnabled ? "true" : "false"));
+        if (includeComments)
+        {
+            builder.AppendLine();
+            builder.AppendLine("# Enables prediction telemetry. Every auto-fired shot writes a line to");
+            builder.AppendLine("# Latest.log and appends a row to Mods/SuperHackerGolf-telemetry.csv with");
+            builder.AppendLine("# predicted vs actual landing, wind vector, ball factors, power, pitch.");
+            builder.AppendLine("# Leave off for normal play — only turn on when tuning the wind model.");
+        }
+        builder.AppendLine("telemetry_enabled=" + (telemetryEnabled ? "true" : "false"));
         if (includeComments)
         {
             builder.AppendLine();

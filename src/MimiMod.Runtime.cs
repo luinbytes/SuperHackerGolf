@@ -16,6 +16,7 @@ public partial class SuperHackerGolf
 
         InvalidateResolvedContextIfLost();
         HandleInput();
+        UpdateShotTelemetry();
 
         if ((playerMovement == null || playerGolfer == null) && currentTime >= nextPlayerSearchTime)
         {

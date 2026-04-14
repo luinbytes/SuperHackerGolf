@@ -235,6 +235,30 @@ public partial class SuperHackerGolf
 
         GUILayout.Space(6);
 
+        // ── Telemetry ───────────────────────────────────────────────────────
+        GUILayout.Label("PREDICTION TELEMETRY", cachedHeaderStyle);
+
+        bool newTelemetry = GUILayout.Toggle(
+            telemetryEnabled,
+            " Log shot predict-vs-actual to Latest.log + SuperHackerGolf-telemetry.csv",
+            cachedToggleStyle);
+        if (newTelemetry != telemetryEnabled)
+        {
+            telemetryEnabled = newTelemetry;
+        }
+
+        if (telemetryEnabled)
+        {
+            GUILayout.Label($"Shots logged: {GetTelemetryShotCount()}", cachedLabelStyle);
+            var recent = GetTelemetryRecentSummaries();
+            for (int i = recent.Count - 1; i >= 0 && i >= recent.Count - 6; i--)
+            {
+                GUILayout.Label(recent[i], cachedLabelStyle);
+            }
+        }
+
+        GUILayout.Space(6);
+
         // ── Status readout ──────────────────────────────────────────────────
         GUILayout.Label("STATUS", cachedHeaderStyle);
         GUILayout.Label($"Assist: {(assistEnabled ? "ON" : "OFF")}   ({assistToggleKeyLabel} to toggle)", cachedLabelStyle);

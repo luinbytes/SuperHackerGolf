@@ -417,6 +417,7 @@ public partial class SuperHackerGolf
                     autoReleaseTriggeredThisCharge = true;
                     autoChargeSequenceStarted = false;
                     FreezePredictedTrajectorySnapshot(livePower, currentPitch);
+                    CaptureShotTelemetry(livePower, currentPitch);
                 }
                 lastObservedSwingPower = livePower;
                 return;
@@ -445,6 +446,7 @@ public partial class SuperHackerGolf
                 autoReleaseTriggeredThisCharge = true;
                 autoChargeSequenceStarted = false;
                 FreezePredictedTrajectorySnapshot(appliedPower, currentPitch);
+                CaptureShotTelemetry(appliedPower, currentPitch);
             }
 
             lastObservedSwingPower = appliedPower;

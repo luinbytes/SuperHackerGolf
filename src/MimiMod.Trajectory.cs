@@ -278,13 +278,14 @@ public partial class SuperHackerGolf
         float pointSpacingSq = predictedPathPointSpacing * predictedPathPointSpacing;
 
         // E8 graft: EXACT reimplementation of Hittable.ApplyAirDamping.
+        // E11: per-contact terrain layer settings replace the ball-material
+        // bounciness/friction read (game bypasses Unity's PhysicsMaterial
+        // pipeline entirely via ContactModifyEvent + TerrainLayerSettings).
         RefreshBallWindFactors();
-        RefreshBallPhysicsMaterial();
+        RefreshHoleBounds();
         Vector3 windVector = GetCachedWindVector();
         float ballWindFactor = GetBallWindFactor();
         float ballCrossWindFactor = GetBallCrossWindFactor();
-        float ballBounciness = GetBallBounciness();
-        float ballDynamicFriction = GetBallDynamicFriction();
 
         outputPoints.Add(shotOrigin);
 
@@ -297,6 +298,8 @@ public partial class SuperHackerGolf
         Vector3 impactNormal = Vector3.up;
         Vector3 impactApproachDirection = GetFallbackPreviewDirection();
 
+        bool holedOut = false;
+
         // ── Phase 1: airborne flight ──────────────────────────────────────────
         for (int i = 0; i < predictedPathMaxSteps && elapsed <= predictedPathMaxTime; i++)
         {
@@ -304,8 +307,6 @@ public partial class SuperHackerGolf
             velocity += gravity * dt;
 
             // E8: exact Hittable.ApplyAirDamping reimplementation.
-            // effectiveWind = project(wind, velocity)*WindFactor + cross*CrossWindFactor
-            // then drag is applied to (velocity - effectiveWind).
             Vector3 effectiveWind = Vector3.zero;
             if (windVector.sqrMagnitude > 0.0001f && velocity.sqrMagnitude > 0.0001f)
             {
@@ -320,6 +321,18 @@ public partial class SuperHackerGolf
 
             position += velocity * dt;
 
+            // E11: hole-in detection — GolfHoleTrigger.ballTrigger overlap with
+            // the ball's current position. No velocity/angle gates (game's real
+            // OnTriggerEnter check doesn't have any either).
+            if (IsPositionInHole(position))
+            {
+                holedOut = true;
+                impactResolved = true;
+                impactPoint = position;
+                impactNormal = Vector3.up;
+                break;
+            }
+
             if (!impactResolved)
             {
                 RaycastHit impactHit;
@@ -333,8 +346,6 @@ public partial class SuperHackerGolf
                     {
                         impactApproachDirection = segmentDirection.normalized;
                     }
-                    // Snap position to impact point so the trajectory line ends exactly
-                    // where the ball actually hits, and phase 2 starts from the right spot.
                     position = impactPoint;
                     break;
                 }
@@ -375,19 +386,18 @@ public partial class SuperHackerGolf
         // "grounded" and we switch to the ground damping formula with per-frame
         // raycasts to follow the terrain contour.
 
-        if (impactResolved)
+        if (impactResolved && !holedOut)
         {
             outputPoints.Add(position);
 
-            // ── Bounce chain ──────────────────────────────────────────────────
-            // Unity's PhysicsMaterial applies bounciness as a normal-velocity
-            // coefficient of restitution, but dynamicFriction is applied during
-            // CONTACT DURATION (not at the bounce instant). For an instantaneous
-            // bounce model we preserve the tangent component fully and only
-            // reflect/scale the normal component. This matches what the user
-            // observed: balls roll 15-30m after a moderate-power shot because
-            // they keep most of their tangent velocity through each bounce.
-            const float BOUNCE_LIFTOFF_SPEED = 0.5f;  // m/s along +normal after bounce
+            // ── E11b: bounce chain using REAL terrain layer settings ──────────
+            //
+            // The game bypasses Unity's PhysicsMaterial pipeline entirely. Every
+            // ball-ground contact, PhysicsManager.ModifyContactsInternal
+            // overwrites bounciness/friction from TerrainLayerSettings of whatever
+            // terrain layer the ball is touching. So we query TerrainManager's
+            // GetDominantLayerSettingsAtPoint at each bounce point.
+            const float BOUNCE_LIFTOFF_SPEED = 0.5f;
             const int MAX_BOUNCES = 12;
 
             Vector3 currentGroundNormal = impactNormal;
@@ -399,33 +409,34 @@ public partial class SuperHackerGolf
             while (bounces < MAX_BOUNCES)
             {
                 bounces++;
-                float normalDot = Vector3.Dot(velocity, currentGroundNormal);
 
-                // Decompose incoming velocity. Tangent stays; normal reflects.
+                // Query the real terrain layer at this contact point — this is
+                // what the game uses for bounciness/friction, NOT the ball's
+                // Unity PhysicsMaterial.
+                float layerBounciness, layerDynFriction, layerLinearDamping,
+                      layerStopMaxPitch, layerRollMinPitch;
+                AnimationCurve layerCurve;
+                TryGetTerrainLayerAtPoint(position,
+                    out layerBounciness, out layerDynFriction, out layerLinearDamping,
+                    out layerStopMaxPitch, out layerRollMinPitch, out layerCurve);
+
+                float normalDot = Vector3.Dot(velocity, currentGroundNormal);
                 Vector3 vNormal = currentGroundNormal * normalDot;
                 Vector3 vTangent = velocity - vNormal;
 
-                // Unity-style reflection: v_out = v_tangent - v_normal * bounciness
-                // (bounciness is the coefficient of restitution, clamped 0..1)
-                Vector3 vOut = vTangent - vNormal * ballBounciness;
-
+                // Coefficient-of-restitution bounce using the terrain's bounciness.
+                Vector3 vOut = vTangent - vNormal * Mathf.Clamp01(layerBounciness);
                 float outNormalSpeed = Vector3.Dot(vOut, currentGroundNormal);
 
-                // If the bounce wouldn't leave the ground, commit to rolling.
                 if (outNormalSpeed < BOUNCE_LIFTOFF_SPEED)
                 {
-                    // Keep tangent velocity intact; the ground damping formula
-                    // (friction-scaled) handles deceleration in the roll phase.
                     velocity = vTangent;
                     grounded = true;
                     break;
                 }
-
                 velocity = vOut;
 
-                // Fly until the next impact. Copy of the phase-1 loop body so
-                // we can apply air drag + wind through the bounce arc.
-                Vector3 bounceStart = position;
+                // Fly until the next impact (inline air-phase step loop).
                 bool nextImpact = false;
                 for (int j = 0; j < predictedPathMaxSteps && elapsed < predictedPathMaxTime; j++)
                 {
@@ -444,6 +455,15 @@ public partial class SuperHackerGolf
                     float dd = Mathf.Max(0f, airDragFactor * rvSq * dt);
                     velocity -= rv * dd;
                     position += velocity * dt;
+
+                    // Hole check during bounce arcs too.
+                    if (IsPositionInHole(position))
+                    {
+                        holedOut = true;
+                        outputPoints.Add(position);
+                        nextImpact = false; // exit bounce loop
+                        break;
+                    }
 
                     RaycastHit hit;
                     if (TryFindWorldImpactAlongSegment(prev, position, out hit))
@@ -468,16 +488,15 @@ public partial class SuperHackerGolf
                     elapsed += dt;
                 }
 
-                if (!nextImpact)
+                if (holedOut || !nextImpact)
                 {
-                    // Ball left the ground and didn't re-contact before time/steps ran out.
                     grounded = false;
                     break;
                 }
             }
 
-            // ── Roll phase ────────────────────────────────────────────────────
-            if (grounded)
+            // ── E11b: roll phase using REAL per-contact terrain layer settings ─
+            if (grounded && !holedOut)
             {
                 float rollingDownhillTime = 0f;
                 float rollElapsed = 0f;
@@ -486,6 +505,15 @@ public partial class SuperHackerGolf
 
                 for (int i = 0; i < predictedPathMaxSteps && rollElapsed < maxRollTime; i++)
                 {
+                    // Query terrain layer at the current roll position (updates
+                    // as the ball crosses fairway → green → rough, etc.).
+                    float layerBounciness, layerDynFriction, layerLinearDamping,
+                          layerStopMaxPitch, layerRollMinPitch;
+                    AnimationCurve layerCurve;
+                    TryGetTerrainLayerAtPoint(position,
+                        out layerBounciness, out layerDynFriction, out layerLinearDamping,
+                        out layerStopMaxPitch, out layerRollMinPitch, out layerCurve);
+
                     float groundPitchDeg = Vector3.Angle(Vector3.up, rollNormal);
 
                     Vector3 velAlongGround = Vector3.ProjectOnPlane(velocity, rollNormal);
@@ -496,17 +524,28 @@ public partial class SuperHackerGolf
                         break;
                     }
 
-                    float fullStopFactor;
-                    float damping = ComputeGroundDamping(groundPitchDeg, speedAlong, rollingDownhillTime, out fullStopFactor);
+                    // Use the terrain-layer LinearDamping directly (the game's
+                    // ApplyCollisionSettings overwrites contact friction with this).
+                    // The game's full stop / roll blend still applies — mirror the
+                    // reconstructed g__GetDamping formula but with the terrain values.
+                    float damping = ComputeTerrainDamping(
+                        groundPitchDeg, speedAlong, rollingDownhillTime,
+                        layerLinearDamping, layerStopMaxPitch, layerRollMinPitch, layerCurve);
 
                     float fac = Mathf.Max(0f, 1f - damping * dt);
                     velocity = velocity - velAlongGround + velAlongGround * fac;
 
                     position += velocity * dt;
 
-                    // Per-frame ground raycast to follow terrain curvature and
-                    // update the ground normal as the ball rolls over slopes.
-                    // Uses BallGroundableMask so trees/walls don't hijack the probe.
+                    // Hole-in check: the ball may roll into the cup from across the green.
+                    if (IsPositionInHole(position))
+                    {
+                        holedOut = true;
+                        outputPoints.Add(position);
+                        break;
+                    }
+
+                    // Per-frame ground raycast to follow terrain curvature.
                     Vector3 probeOrigin = position + Vector3.up * 0.5f;
                     RaycastHit groundHit;
                     if (Physics.Raycast(probeOrigin, Vector3.down, out groundHit, 2f, GetBallGroundableMask(), QueryTriggerInteraction.Ignore))
@@ -534,6 +573,10 @@ public partial class SuperHackerGolf
                 }
             }
 
+            outputPoints.Add(position);
+        }
+        else if (holedOut)
+        {
             outputPoints.Add(position);
         }
 

@@ -575,4 +575,69 @@ public partial class SuperHackerGolf
         float u = Mathf.Clamp01((t - inMin) / (inMax - inMin));
         return outMin + u * (outMax - outMin);
     }
+
+    // ── Terrain-layer-aware ground damping ─────────────────────────────────────
+    //
+    // Per the background decomp findings, the game bypasses PhysicsMaterial
+    // and instead reads per-terrain-layer settings (Bounciness, LinearDamping,
+    // FullStopMaxPitch, FullRollMinPitch, BallFullStopToFullRollCurve) at each
+    // contact point. The g__GetDamping formula still applies — just with the
+    // terrain-layer values instead of GolfBallSettings defaults.
+    //
+    // If the terrain reflection fails (layerLinearDamping=0 etc.), falls back
+    // to the GolfBallSettings ComputeGroundDamping path.
+    internal float ComputeTerrainDamping(float pitch, float speed, float rollingDownhillTime,
+                                          float layerLinearDamping, float layerStopMaxPitch, float layerRollMinPitch,
+                                          AnimationCurve layerCurve)
+    {
+        EnsurePhysicsReflectionInitialized();
+
+        // If the terrain query failed (layer linear damping is zero), fall
+        // back to the GolfBallSettings formula.
+        if (layerLinearDamping < 0.0001f)
+        {
+            float unused;
+            return ComputeGroundDamping(pitch, speed, rollingDownhillTime, out unused);
+        }
+
+        float fullStopMaxPitch = layerStopMaxPitch > 0.1f ? layerStopMaxPitch : cachedGroundFullStopMaxPitch;
+        float fullRollMinPitch = layerRollMinPitch > 0.1f ? layerRollMinPitch : cachedGroundFullRollMinPitch;
+        AnimationCurve curve = layerCurve ?? cachedGroundFullStopToFullRollCurve;
+
+        float downhillRollMul = RemapClampedFloat(
+            cachedFullStopRollingDownhillStartTime,
+            cachedFullStopRollingDownhillEndTime,
+            1f,
+            cachedFullStopRollingDownhillEndDampingSpeedFactor,
+            rollingDownhillTime);
+
+        float fullStopMaxDampSpeed = downhillRollMul * cachedFullStopMaxDampingSpeed;
+        float fullStopMinDampSpeed = downhillRollMul * cachedFullStopMinDampingSpeed;
+
+        // Step 5: full-stop gate
+        if (pitch < fullStopMaxPitch && speed * speed < fullStopMaxDampSpeed * fullStopMaxDampSpeed)
+        {
+            return cachedFullStopLinearDamping;
+        }
+
+        // Step 7: friction damping scaled by ease-in(pitch/90) using the TERRAIN
+        // layer's LinearDamping instead of GolfBallSettings.GroundFrictionLinearDamping.
+        float t = Mathf.Clamp01(pitch / 90f);
+        float easeIn = t * t;
+        float frictionScale = 1f - easeIn;
+        float frictionDampingScaled = frictionScale * layerLinearDamping;
+
+        // Step 8: below min damping speed
+        if (speed * speed < fullStopMinDampSpeed * fullStopMinDampSpeed)
+        {
+            return frictionDampingScaled;
+        }
+
+        // Step 9: blend friction and full-stop via pitch curve + speed fraction
+        float fsf = Mathf.InverseLerp(fullStopMinDampSpeed, fullStopMaxDampSpeed, speed);
+        float curveT = Mathf.InverseLerp(fullStopMaxPitch, fullRollMinPitch, pitch);
+        float curveValue = curve != null ? curve.Evaluate(curveT) : (1f - curveT);
+        fsf *= curveValue;
+        return Mathf.Lerp(frictionDampingScaled, cachedFullStopLinearDamping, fsf);
+    }
 }

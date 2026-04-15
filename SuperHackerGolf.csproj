@@ -16,8 +16,15 @@
     <GamePath>/mnt/ssd/.games/steamapps/common/Super Battle Golf/Super Battle Golf_Data/Managed</GamePath>
   </PropertyGroup>
 
-  <!-- ── MelonLoader references (checked in under ci/melonloader/) ─────────── -->
+  <!-- Keep the SDK glob from picking up ci/stubs/*.cs as part of the main mod build. -->
   <ItemGroup>
+    <Compile Remove="ci/**/*.cs" />
+  </ItemGroup>
+
+  <!-- ── LOCAL MODE ──────────────────────────────────────────────────────────
+       Reference real MelonLoader + game-install Unity module DLLs. Used for
+       normal developer builds; requires the game to be installed at $(GamePath). -->
+  <ItemGroup Condition="'$(CI)' != 'true'">
     <Reference Include="MelonLoader">
       <HintPath>$(MSBuildProjectDirectory)/ci/melonloader/MelonLoader/net35/MelonLoader.dll</HintPath>
       <Private>false</Private>
@@ -26,13 +33,11 @@
       <HintPath>$(MSBuildProjectDirectory)/ci/melonloader/MelonLoader/net35/0Harmony.dll</HintPath>
       <Private>false</Private>
     </Reference>
-  </ItemGroup>
-
-  <!-- ── Game DLLs referenced from the local Managed folder ───────────────────
-       NOTE: UnityEngine.dll (the base) is deliberately NOT referenced —
-       it holds the same types as the module DLLs without proper type-forwarding,
-       causing CS0433 "exists in both" errors. Reference only module assemblies. -->
-  <ItemGroup>
+    <!-- Game DLLs referenced from the local Managed folder.
+         NOTE: UnityEngine.dll (the base) is deliberately NOT referenced —
+         it holds the same types as the module DLLs without proper
+         type-forwarding, causing CS0433 "exists in both" errors. Reference
+         only module assemblies. -->
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(GamePath)/UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
@@ -63,6 +68,19 @@
     </Reference>
     <Reference Include="Unity.TextMeshPro">
       <HintPath>$(GamePath)/Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <!-- ── CI MODE ─────────────────────────────────────────────────────────────
+       Reference the handwritten stub assembly produced by ci/stubs/UnityStubs.csproj.
+       The single stub DLL exports everything under UnityEngine, UnityEngine.UI,
+       UnityEngine.InputSystem, UnityEngine.Rendering, UnityEngine.SceneManagement,
+       TMPro, MelonLoader, and HarmonyLib namespaces — enough to satisfy the
+       compiler. No real Unity/MelonLoader DLLs are needed on the CI runner. -->
+  <ItemGroup Condition="'$(CI)' == 'true'">
+    <Reference Include="UnityEngine">
+      <HintPath>$(MSBuildProjectDirectory)/ci/stubs/bin/Release/UnityEngine.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

@@ -1,0 +1,55 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to upload release assets
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      # ── Build handwritten Unity / MelonLoader / Harmony / TMP stubs ───────
+      # Produces ci/stubs/bin/Release/UnityEngine.dll. The single assembly
+      # exports every namespace the mod references (UnityEngine, UnityEngine.UI,
+      # UnityEngine.InputSystem, UnityEngine.Rendering, UnityEngine.SceneManagement,
+      # TMPro, MelonLoader, HarmonyLib) — enough to satisfy the compiler
+      # without needing the actual game install or MelonLoader binaries.
+      - name: Build Unity stubs
+        run: dotnet build ci/stubs/UnityStubs.csproj -c Release --nologo
+
+      # ── Build the mod against the stub assembly ──────────────────────────
+      # /p:CI=true activates the conditional ItemGroup in SuperHackerGolf.csproj
+      # that swaps the game-install references for the single stub DLL.
+      - name: Build SuperHackerGolf
+        run: dotnet build SuperHackerGolf.csproj -c Release --nologo /p:CI=true
+
+      # ── Upload the built mod DLL as a workflow artifact ───────────────────
+      # AppendTargetFrameworkToOutputPath is false in the csproj, so the DLL
+      # lands directly under bin/Release/ (no netstandard2.1 subfolder).
+      - name: Upload DLL artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SuperHackerGolf
+          path: bin/Release/SuperHackerGolf.dll
+          if-no-files-found: error
+
+      # ── On release: attach the DLL to the GitHub release ─────────────────
+      - name: Attach DLL to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bin/Release/SuperHackerGolf.dll

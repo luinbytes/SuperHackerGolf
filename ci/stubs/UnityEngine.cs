@@ -473,6 +473,18 @@ namespace UnityEngine
         public IEnumerator GetEnumerator() => null;
     }
 
+    public class RectTransform : Transform
+    {
+        public Vector2 anchorMin { get; set; }
+        public Vector2 anchorMax { get; set; }
+        public Vector2 anchoredPosition { get; set; }
+        public Vector2 offsetMin { get; set; }
+        public Vector2 offsetMax { get; set; }
+        public Vector2 sizeDelta { get; set; }
+        public Vector2 pivot { get; set; }
+        public Rect rect => default;
+    }
+
     public class GameObject : Object
     {
         public GameObject() { }
@@ -1008,58 +1020,5 @@ namespace UnityEngine.SceneManagement
     public static class SceneManager
     {
         public static Scene GetActiveScene() => default;
-    }
-}
-
-namespace UnityEngine.UI
-{
-    public class Graphic : Behaviour
-    {
-        public Color color { get; set; }
-        public bool raycastTarget { get; set; }
-        public Material material { get; set; }
-    }
-
-    public class Image : Graphic
-    {
-        public Sprite sprite { get; set; }
-    }
-
-    public class RawImage : Graphic
-    {
-        public Texture texture { get; set; }
-    }
-
-    public class Canvas : Behaviour
-    {
-        public RenderMode renderMode { get; set; }
-        public int sortingOrder { get; set; }
-        public Camera worldCamera { get; set; }
-        public float planeDistance { get; set; }
-        public bool overrideSorting { get; set; }
-    }
-
-    public class CanvasScaler : Behaviour
-    {
-        public enum ScaleMode { ConstantPixelSize, ScaleWithScreenSize, ConstantPhysicalSize }
-        public enum ScreenMatchMode { MatchWidthOrHeight, Expand, Shrink }
-        public ScaleMode uiScaleMode { get; set; }
-        public Vector2 referenceResolution { get; set; }
-        public ScreenMatchMode screenMatchMode { get; set; }
-        public float matchWidthOrHeight { get; set; }
-    }
-
-    public class GraphicRaycaster : Behaviour { }
-
-    public class RectTransform : Transform
-    {
-        public Vector2 anchorMin { get; set; }
-        public Vector2 anchorMax { get; set; }
-        public Vector2 anchoredPosition { get; set; }
-        public Vector2 offsetMin { get; set; }
-        public Vector2 offsetMax { get; set; }
-        public Vector2 sizeDelta { get; set; }
-        public Vector2 pivot { get; set; }
-        public Rect rect => default;
     }
 }

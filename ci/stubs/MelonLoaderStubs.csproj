@@ -1,23 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
-    <AssemblyName>UnityEngine</AssemblyName>
-    <RootNamespace>UnityStubs</RootNamespace>
+    <AssemblyName>MelonLoader</AssemblyName>
+    <RootNamespace>MelonLoaderStubs</RootNamespace>
     <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <!-- Suppress unused-field, unused-event, missing-XML-doc, never-assigned and similar warnings -->
-    <NoWarn>CS1591;CS0067;CS0626;CS0649;CS0414;CS8618;CS8625;CS8632;CS0436;CS0108;CS0114;CS0660;CS0661;CS0282</NoWarn>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS1591;CS0067;CS0626;CS0649;CS0414;CS8618;CS8625;CS8632;CS0436;CS0108;CS0114</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="HarmonyLib.cs" />
-    <Compile Remove="MelonLoader.cs" />
-    <Compile Remove="TextMeshPro.cs" />
-    <Compile Remove="UnityUi.cs" />
-    <Compile Remove="UnityInputSystem.cs" />
+    <Compile Include="MelonLoader.cs" />
   </ItemGroup>
 </Project>

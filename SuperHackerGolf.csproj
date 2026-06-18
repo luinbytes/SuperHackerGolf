@@ -73,14 +73,33 @@
   </ItemGroup>
 
   <!-- ── CI MODE ─────────────────────────────────────────────────────────────
-       Reference the handwritten stub assembly produced by ci/stubs/UnityStubs.csproj.
-       The single stub DLL exports everything under UnityEngine, UnityEngine.UI,
-       UnityEngine.InputSystem, UnityEngine.Rendering, UnityEngine.SceneManagement,
-       TMPro, MelonLoader, and HarmonyLib namespaces — enough to satisfy the
-       compiler. No real Unity/MelonLoader DLLs are needed on the CI runner. -->
+       Reference handwritten stub assemblies produced under ci/stubs/bin/Release.
+       The stub DLL names intentionally match the runtime assembly identities
+       used by the game and MelonLoader. This keeps custom attributes, enums,
+       and method references compatible with the real runtime DLLs. -->
   <ItemGroup Condition="'$(CI)' == 'true'">
     <Reference Include="UnityEngine">
       <HintPath>$(MSBuildProjectDirectory)/ci/stubs/bin/Release/UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(MSBuildProjectDirectory)/ci/stubs/bin/Release/UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MelonLoader">
+      <HintPath>$(MSBuildProjectDirectory)/ci/stubs/bin/Release/MelonLoader.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(MSBuildProjectDirectory)/ci/stubs/bin/Release/0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$(MSBuildProjectDirectory)/ci/stubs/bin/Release/Unity.InputSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(MSBuildProjectDirectory)/ci/stubs/bin/Release/Unity.TextMeshPro.dll</HintPath>
       <Private>false</Private>
     </Reference>
   </ItemGroup>

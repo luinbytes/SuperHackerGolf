@@ -16,8 +16,7 @@ namespace MelonLoader
     [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
     public sealed class MelonInfoAttribute : Attribute
     {
-        public MelonInfoAttribute(Type type, string name, string version, string author) { }
-        public MelonInfoAttribute(Type type, string name, string version, string author, string downloadLink) { }
+        public MelonInfoAttribute(Type type, string name, string version, string author, string downloadLink = null) { }
     }
 
     [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]

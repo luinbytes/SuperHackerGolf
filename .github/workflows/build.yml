@@ -22,18 +22,30 @@ jobs:
         with:
           dotnet-version: '8.x'
 
-      # ── Build handwritten Unity / MelonLoader / Harmony / TMP stubs ───────
-      # Produces ci/stubs/bin/Release/UnityEngine.dll. The single assembly
-      # exports every namespace the mod references (UnityEngine, UnityEngine.UI,
-      # UnityEngine.InputSystem, UnityEngine.Rendering, UnityEngine.SceneManagement,
-      # TMPro, MelonLoader, HarmonyLib) — enough to satisfy the compiler
-      # without needing the actual game install or MelonLoader binaries.
-      - name: Build Unity stubs
+      # ── Build handwritten stubs ──────────────────────────────────────────
+      # These assemblies are compiler-only, but their names must match the
+      # runtime DLL identities used by the game, MelonLoader, and Harmony.
+      - name: Build UnityEngine stubs
         run: dotnet build ci/stubs/UnityStubs.csproj -c Release --nologo
+
+      - name: Build Unity UI stubs
+        run: dotnet build ci/stubs/UnityUiStubs.csproj -c Release --nologo
+
+      - name: Build MelonLoader stubs
+        run: dotnet build ci/stubs/MelonLoaderStubs.csproj -c Release --nologo
+
+      - name: Build Harmony stubs
+        run: dotnet build ci/stubs/HarmonyStubs.csproj -c Release --nologo
+
+      - name: Build Unity InputSystem stubs
+        run: dotnet build ci/stubs/UnityInputSystemStubs.csproj -c Release --nologo
+
+      - name: Build TextMeshPro stubs
+        run: dotnet build ci/stubs/TextMeshProStubs.csproj -c Release --nologo
 
       # ── Build the mod against the stub assembly ──────────────────────────
       # /p:CI=true activates the conditional ItemGroup in SuperHackerGolf.csproj
-      # that swaps the game-install references for the single stub DLL.
+      # that swaps the game-install references for the stub DLLs.
       - name: Build SuperHackerGolf
         run: dotnet build SuperHackerGolf.csproj -c Release --nologo /p:CI=true
 

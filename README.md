@@ -112,14 +112,19 @@ Outputs `bin/Release/SuperHackerGolf.dll` and copies it into `<gamefolder>/Mods/
 
 ### CI build (no game install required)
 
-GitHub Actions builds the mod from a clean checkout by first compiling a handwritten stub assembly (`ci/stubs/UnityStubs.csproj`) that exports every `UnityEngine.*`, `TMPro`, `MelonLoader` and `HarmonyLib` type the mod references, then compiling the mod against that single stub DLL:
+GitHub Actions builds the mod from a clean checkout by first compiling handwritten stub assemblies under `ci/stubs/`. These stubs are compiler-only, but their output DLL names match the runtime assembly identities (`UnityEngine.dll`, `UnityEngine.UI.dll`, `MelonLoader.dll`, `0Harmony.dll`, `Unity.InputSystem.dll`, and `Unity.TextMeshPro.dll`) so attributes and type references in the final mod resolve against the real game/MelonLoader DLLs at load time:
 
 ```bash
 dotnet build ci/stubs/UnityStubs.csproj -c Release
+dotnet build ci/stubs/UnityUiStubs.csproj -c Release
+dotnet build ci/stubs/MelonLoaderStubs.csproj -c Release
+dotnet build ci/stubs/HarmonyStubs.csproj -c Release
+dotnet build ci/stubs/UnityInputSystemStubs.csproj -c Release
+dotnet build ci/stubs/TextMeshProStubs.csproj -c Release
 dotnet build SuperHackerGolf.csproj -c Release /p:CI=true
 ```
 
-The `CI=true` property flips the conditional `<ItemGroup>` in `SuperHackerGolf.csproj` between the game-install references (local mode) and the stub reference (CI mode). Stub sources are under `ci/stubs/` and are excluded from the main project's compile glob.
+The `CI=true` property flips the conditional `<ItemGroup>` in `SuperHackerGolf.csproj` between the game-install references (local mode) and the stub references (CI mode). Stub sources are under `ci/stubs/` and are excluded from the main project's compile glob.
 
 ## Project structure
 
@@ -157,7 +162,13 @@ src/
 ci/
   stubs/
     UnityStubs.csproj          — netstandard2.1 stub project producing UnityEngine.dll
-    UnityEngine.cs             — handwritten stubs for UnityEngine + UI + Rendering + SceneManagement namespaces
+    UnityUiStubs.csproj        — netstandard2.1 stub project producing UnityEngine.UI.dll
+    MelonLoaderStubs.csproj    — netstandard2.1 stub project producing MelonLoader.dll
+    HarmonyStubs.csproj        — netstandard2.1 stub project producing 0Harmony.dll
+    UnityInputSystemStubs.csproj — netstandard2.1 stub project producing Unity.InputSystem.dll
+    TextMeshProStubs.csproj    — netstandard2.1 stub project producing Unity.TextMeshPro.dll
+    UnityEngine.cs             — handwritten stubs for UnityEngine + Rendering + SceneManagement namespaces
+    UnityUi.cs                 — handwritten stubs for UnityEngine.UI namespaces
     UnityInputSystem.cs        — handwritten stubs for UnityEngine.InputSystem + Controls namespaces
     MelonLoader.cs             — handwritten stubs for MelonLoader attributes, MelonMod, MelonLogger
     HarmonyLib.cs              — handwritten stubs for Harmony, HarmonyMethod, AccessTools, attributes

@@ -24,8 +24,7 @@ jobs:
 
       # ── Build handwritten stubs ──────────────────────────────────────────
       # These assemblies are compiler-only, but their names must match the
-      # runtime DLL identities. In particular, MelonLoader attributes must come
-      # from MelonLoader.dll, not from a UnityEngine-named aggregate stub.
+      # runtime DLL identities used by the game, MelonLoader, and Harmony.
       - name: Build UnityEngine stubs
         run: dotnet build ci/stubs/UnityStubs.csproj -c Release --nologo
 

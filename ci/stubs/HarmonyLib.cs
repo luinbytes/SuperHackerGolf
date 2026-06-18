@@ -11,7 +11,7 @@ namespace HarmonyLib
     {
         public Harmony(string id) { Id = id; }
         public string Id { get; }
-        public MethodBase Patch(
+        public MethodInfo Patch(
             MethodBase original,
             HarmonyMethod prefix = null,
             HarmonyMethod postfix = null,

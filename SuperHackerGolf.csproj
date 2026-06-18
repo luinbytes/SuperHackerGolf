@@ -75,9 +75,8 @@
   <!-- ── CI MODE ─────────────────────────────────────────────────────────────
        Reference handwritten stub assemblies produced under ci/stubs/bin/Release.
        The stub DLL names intentionally match the runtime assembly identities
-       used by the game and MelonLoader. If MelonLoader attributes are compiled
-       from a UnityEngine-named stub, MelonLoader fails while reading
-       MelonInfoAttribute from the mod assembly. -->
+       used by the game and MelonLoader. This keeps custom attributes, enums,
+       and method references compatible with the real runtime DLLs. -->
   <ItemGroup Condition="'$(CI)' == 'true'">
     <Reference Include="UnityEngine">
       <HintPath>$(MSBuildProjectDirectory)/ci/stubs/bin/Release/UnityEngine.dll</HintPath>

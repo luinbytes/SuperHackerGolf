@@ -112,7 +112,7 @@ Outputs `bin/Release/SuperHackerGolf.dll` and copies it into `<gamefolder>/Mods/
 
 ### CI build (no game install required)
 
-GitHub Actions builds the mod from a clean checkout by first compiling handwritten stub assemblies under `ci/stubs/`. These stubs are compiler-only, but their output DLL names match the runtime assembly identities (`UnityEngine.dll`, `UnityEngine.UI.dll`, `MelonLoader.dll`, `0Harmony.dll`, `Unity.InputSystem.dll`, and `Unity.TextMeshPro.dll`) so attributes and type references in the final mod resolve against the real game/MelonLoader DLLs at load time:
+GitHub Actions builds the mod from a clean checkout by first compiling handwritten stub assemblies under `ci/stubs/`. These stubs are compiler-only, but their output DLL names match the runtime assembly identities (`UnityEngine.dll`, `UnityEngine.UI.dll`, `MelonLoader.dll`, `0Harmony.dll`, `Unity.InputSystem.dll`, and `Unity.TextMeshPro.dll`) so attributes, enum constants, and method references in the final mod resolve against the real game/MelonLoader DLLs at load time:
 
 ```bash
 dotnet build ci/stubs/UnityStubs.csproj -c Release

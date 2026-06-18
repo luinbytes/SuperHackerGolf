@@ -23,15 +23,6 @@ namespace UnityEngine.UI
         public Texture texture { get; set; }
     }
 
-    public class Canvas : Behaviour
-    {
-        public RenderMode renderMode { get; set; }
-        public int sortingOrder { get; set; }
-        public Camera worldCamera { get; set; }
-        public float planeDistance { get; set; }
-        public bool overrideSorting { get; set; }
-    }
-
     public class CanvasScaler : Behaviour
     {
         public enum ScaleMode { ConstantPixelSize, ScaleWithScreenSize, ConstantPhysicalSize }

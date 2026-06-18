@@ -17,7 +17,7 @@
     <Compile Remove="HarmonyLib.cs" />
     <Compile Remove="MelonLoader.cs" />
     <Compile Remove="TextMeshPro.cs" />
-    <Compile Remove="UnityUi.cs" />
     <Compile Remove="UnityInputSystem.cs" />
+    <Compile Remove="UnityUi.cs" />
   </ItemGroup>
 </Project>

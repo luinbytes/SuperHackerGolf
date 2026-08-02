@@ -22,8 +22,7 @@ namespace MelonLoader
     [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
     public sealed class MelonGameAttribute : Attribute
     {
-        public MelonGameAttribute() { }
-        public MelonGameAttribute(string developer, string name) { }
+        public MelonGameAttribute(string developer = null, string name = null) { }
     }
 
     public abstract class MelonBase
